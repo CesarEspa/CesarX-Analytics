@@ -1,0 +1,30 @@
+# Backend (Maven / Java)
+backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# AI microservice (Python) - Phase 2
+**/__pycache__/
+ai-service/venv/
+ai-service/.venv/
+*.pyc
+
+# Frontend (Node) - Phase 3
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

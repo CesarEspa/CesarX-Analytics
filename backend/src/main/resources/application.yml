@@ -1,0 +1,54 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: analytics-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:cesarx_analytics}
+    username: ${DB_USER:cesarx}
+    password: ${DB_PASSWORD:cesarx}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-this-super-secret-key-before-deploying-to-production-min-32-bytes}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24h
+
+  market-data:
+    yahoo-finance-base-url: https://query1.finance.yahoo.com
+
+  # Base URL of the Python AI microservice (wired up in Phase 2)
+  ai-service:
+    base-url: ${AI_SERVICE_URL:http://localhost:8000}
+
+  alerts:
+    check-interval-ms: ${ALERTS_CHECK_INTERVAL_MS:300000} # 5 min
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    com.cesarx.analytics: INFO
+    org.springframework.security: WARN
