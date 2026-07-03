@@ -8,6 +8,7 @@ Endpoints:
 
 from fastapi import FastAPI, HTTPException
 
+from .cache import TTLCache
 from .config import settings
 from .news import NewsError, fetch_news
 from .prediction import PredictionError, predict_trend
@@ -18,6 +19,12 @@ app = FastAPI(
     version="0.1.0",
     description="Predicción de tendencia (scikit-learn) y análisis de sentimiento de noticias (NewsAPI + Claude).",
 )
+
+# Shared by symbol so repeat lookups (any user, any request) don't re-hit
+# NewsAPI/Claude or re-train the model. Predictions change slowly (1-month
+# trend), so they get a longer TTL than news.
+predict_cache = TTLCache(ttl_seconds=6 * 3600)
+news_cache = TTLCache(ttl_seconds=3 * 3600)
 
 
 @app.get("/health")
@@ -31,16 +38,35 @@ def health() -> dict:
 
 @app.get("/predict/{symbol}")
 def predict(symbol: str) -> dict:
+    key = symbol.upper()
+    cached = predict_cache.get(key)
+    if cached is not None:
+        return cached
+
     try:
-        return predict_trend(symbol)
+        result = predict_trend(symbol)
     except PredictionError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:  # yfinance/network hiccups
         raise HTTPException(status_code=502, detail=f"Prediction failed for {symbol}: {e}") from e
 
+    predict_cache.set(key, result)
+    return result
+
 
 @app.get("/news/{symbol}")
 def news(symbol: str) -> dict:
+    key = symbol.upper()
+    cached = news_cache.get(key)
+    if cached is not None:
+        return cached
+
+    result = _build_news_response(symbol)
+    news_cache.set(key, result)
+    return result
+
+
+def _build_news_response(symbol: str) -> dict:
     try:
         articles = fetch_news(symbol)
     except NewsError as e:

@@ -1,0 +1,22 @@
+name: Keep Supabase awake
+
+# Supabase's free-tier projects auto-pause after 7 days with zero API
+# activity. This pings the backend's /actuator/health endpoint, which touches
+# the datasource (Spring Boot's DataSourceHealthIndicator), just often enough
+# to keep the project from pausing. Requires the backend to be deployed with
+# spring-boot-starter-actuator (see backend/pom.xml) and the real Render URL
+# below.
+on:
+  schedule:
+    - cron: "0 12 */4 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health check
+        # --max-time is generous because Render's free tier also sleeps after
+        # 15 min idle, so this ping may itself trigger a ~30-50s cold start
+        # before ever reaching Supabase.
+        run: curl -f --max-time 90 https://cesarx-analytics-backend.onrender.com/actuator/health

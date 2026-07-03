@@ -4,7 +4,14 @@ Plataforma full-stack de análisis de inversiones en ETFs que combina datos de m
 
 Proyecto de doble propósito:
 - **Uso personal real**: monitorear posiciones propias (VGT, QQQ, VOO, NVDA) con señales de compra/venta y noticias relevantes.
-- **Portafolio profesional**: demostrar un stack financiero completo (Java/Spring Boot, Python/IA, React/Next.js, PostgreSQL, Power BI) para roles de Full-Stack Developer / Data Analyst en el sector financiero.
+- **Portafolio profesional**: demostrar un stack financiero completo (Java/Spring Boot, Python/IA, Angular, PostgreSQL, Power BI) para roles de Full-Stack Developer / Data Analyst en el sector financiero.
+
+## 🔗 Demo en vivo
+
+- Frontend: https://cesarespa.github.io/CesarX-Analytics/
+- API (Swagger): https://cesarx-analytics-backend.onrender.com/swagger-ui.html
+
+> El backend corre en el plan gratuito de Render y se duerme tras 15 min sin tráfico — la primera petición tras inactividad puede tardar hasta ~50s en responder (la UI muestra un aviso de "despertando el servidor" mientras tanto).
 
 ## Arquitectura
 
