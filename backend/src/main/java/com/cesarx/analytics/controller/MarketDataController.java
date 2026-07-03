@@ -35,10 +35,11 @@ public class MarketDataController {
     }
 
     @GetMapping("/history/{symbol}")
-    @Operation(summary = "Histórico de precios (rango tipo Yahoo Finance: 1mo, 3mo, 6mo, 1y, 5y, max)")
+    @Operation(summary = "Histórico de precios (range: 1d, 1mo, 3mo, 6mo, 1y, 5y · interval: 5m, 15m, 1h, 1d)")
     public PriceHistoryResponse getHistory(@PathVariable String symbol,
-                                            @RequestParam(defaultValue = "3mo") String range) {
-        return marketDataService.getHistory(symbol, range);
+                                            @RequestParam(defaultValue = "3mo") String range,
+                                            @RequestParam(defaultValue = "1d") String interval) {
+        return marketDataService.getHistory(symbol, range, interval);
     }
 
     @PostMapping("/cache/{symbol}")

@@ -29,8 +29,8 @@ export class ApiService {
     return this.http.get<PriceQuote>(`/api/market/quote/${symbol}`);
   }
 
-  getHistory(symbol: string, range: string): Observable<PriceHistoryResponse> {
-    const params = new HttpParams().set('range', range);
+  getHistory(symbol: string, range: string, interval = '1d'): Observable<PriceHistoryResponse> {
+    const params = new HttpParams().set('range', range).set('interval', interval);
     return this.http.get<PriceHistoryResponse>(`/api/market/history/${symbol}`, { params });
   }
 

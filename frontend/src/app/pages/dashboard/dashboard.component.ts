@@ -20,8 +20,24 @@ import { AlertsPanelComponent } from '../../components/alerts-panel.component';
 import { PredictionCardComponent } from '../../components/prediction-card.component';
 import { NewsPanelComponent } from '../../components/news-panel.component';
 
-const RANGES = ['1mo', '3mo', '6mo', '1y', '5y'] as const;
+interface RangeOption {
+  value: string;
+  label: string;
+  interval: string;
+  intraday: boolean;
+}
+
+const RANGES: RangeOption[] = [
+  { value: '1d', label: '1D · 5min', interval: '5m', intraday: true },
+  { value: '5d', label: '5D · 15min', interval: '15m', intraday: true },
+  { value: '1mo', label: '1M', interval: '1d', intraday: false },
+  { value: '6mo', label: '6M', interval: '1d', intraday: false },
+  { value: '1y', label: '1A', interval: '1d', intraday: false },
+  { value: '5y', label: '5A', interval: '1wk', intraday: false },
+];
+
 const LIVE_REFRESH_MS = 20_000;
+const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
 
 @Component({
   selector: 'app-dashboard',
@@ -83,9 +99,9 @@ const LIVE_REFRESH_MS = 20_000;
             }
           </div>
           <div class="ranges">
-            @for (range of ranges; track range) {
-              <button class="btn-ghost" [class.active]="selectedRange() === range" (click)="selectRange(range)">
-                {{ range }}
+            @for (range of ranges; track range.value) {
+              <button class="btn-ghost" [class.active]="selectedRange().value === range.value" (click)="selectRange(range)">
+                {{ range.label }}
               </button>
             }
           </div>
@@ -94,7 +110,7 @@ const LIVE_REFRESH_MS = 20_000;
         @if (historyLoading()) {
           <div class="chart-loading"><span class="spinner"></span></div>
         } @else {
-          <app-candle-chart [points]="historyPoints()" />
+          <app-candle-chart [points]="historyPoints()" [intraday]="selectedRange().intraday" />
         }
       </section>
 
@@ -134,13 +150,13 @@ const LIVE_REFRESH_MS = 20_000;
     .topbar {
       display: flex; justify-content: space-between; align-items: center;
       padding: 14px 26px; border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; background: #0b0f1aee; backdrop-filter: blur(8px); z-index: 10;
+      position: sticky; top: 0; background: #faf9f5ee; backdrop-filter: blur(8px); z-index: 10;
     }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand h1 { font-size: 17px; }
     .subtitle { font-size: 12px; }
     .logo-mark {
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
       color: #fff; font-weight: 800; font-size: 15px;
       width: 38px; height: 38px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
@@ -187,7 +203,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly quotes = signal<Record<string, PriceQuote>>({});
   readonly failedQuotes = signal<string[]>([]);
   readonly selectedSymbol = signal<string>('VGT');
-  readonly selectedRange = signal<string>('6mo');
+  readonly selectedRange = signal<RangeOption>(RANGES[0]);
   readonly historyPoints = signal<PriceHistoryPoint[]>([]);
   readonly historyLoading = signal(false);
   readonly portfolio = signal<PortfolioSummary | null>(null);
@@ -203,17 +219,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly newsError = signal<string | null>(null);
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private chartTimer: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.loadEtfs();
     this.loadPortfolio();
     this.loadAlerts();
     this.refreshTimer = setInterval(() => this.refreshLiveQuotes(), LIVE_REFRESH_MS);
+    // Intraday candles get a new bar every 5 minutes — refresh the chart
+    // silently (no spinner) so the view stays current without flicker.
+    this.chartTimer = setInterval(() => {
+      if (this.selectedRange().intraday) {
+        this.loadHistory(true);
+      }
+    }, CHART_REFRESH_MS);
   }
 
   ngOnDestroy(): void {
     if (this.refreshTimer !== null) {
       clearInterval(this.refreshTimer);
+    }
+    if (this.chartTimer !== null) {
+      clearInterval(this.chartTimer);
     }
   }
 
@@ -232,7 +259,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadAiAnalysis();
   }
 
-  selectRange(range: string): void {
+  selectRange(range: RangeOption): void {
     this.selectedRange.set(range);
     this.loadHistory();
   }
@@ -358,16 +385,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadHistory(): void {
-    this.historyLoading.set(true);
-    this.api.getHistory(this.selectedSymbol(), this.selectedRange()).subscribe({
+  private loadHistory(silent = false): void {
+    const range = this.selectedRange();
+    if (!silent) {
+      this.historyLoading.set(true);
+    }
+    this.api.getHistory(this.selectedSymbol(), range.value, range.interval).subscribe({
       next: (history) => {
         this.historyPoints.set(history.points);
         this.historyLoading.set(false);
       },
       error: () => {
-        this.historyPoints.set([]);
-        this.historyLoading.set(false);
+        if (!silent) {
+          this.historyPoints.set([]);
+          this.historyLoading.set(false);
+        }
       },
     });
   }

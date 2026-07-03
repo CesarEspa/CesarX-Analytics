@@ -1,19 +1,22 @@
-/* CesarX Analytics — dark finance theme */
+/* CesarX Analytics — Claude design (warm paper theme) */
 
 :root {
-  --bg: #0b0f1a;
-  --bg-card: #121a2b;
-  --border: #1f2a44;
-  --text: #e2e8f0;
-  --text-muted: #8b9bb4;
-  --accent: #3b82f6;
-  --accent-soft: #3b82f622;
-  --green: #22c55e;
-  --green-soft: #22c55e1e;
-  --red: #ef4444;
-  --red-soft: #ef44441e;
-  --amber: #f59e0b;
-  --amber-soft: #f59e0b1e;
+  --bg: #faf9f5;            /* ivory paper */
+  --bg-card: #ffffff;
+  --bg-inset: #f0eee6;      /* warm inset panels / inputs */
+  --border: #e3e0d5;
+  --text: #1f1e1d;          /* dark ink */
+  --text-muted: #82807a;
+  --accent: #d97757;        /* Claude coral */
+  --accent-strong: #c05f3c;
+  --accent-soft: #d9775722;
+  --green: #1a7f5a;
+  --green-soft: #1a7f5a18;
+  --red: #bf4d43;
+  --red-soft: #bf4d4318;
+  --amber: #a16c1f;
+  --amber-soft: #a16c1f1a;
+  --shadow: 0 1px 3px rgba(31, 30, 29, 0.06), 0 4px 14px rgba(31, 30, 29, 0.04);
 }
 
 * {
@@ -32,7 +35,9 @@ body {
 
 h1, h2, h3 {
   margin: 0;
+  font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 button {
@@ -42,54 +47,58 @@ button {
 
 input, select {
   font-family: inherit;
-  background: #0d1424;
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text);
   padding: 9px 12px;
   font-size: 14px;
   outline: none;
   width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 input:focus, select:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 18px;
+  box-shadow: var(--shadow);
 }
 
 .btn {
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
-  transition: opacity 0.15s;
+  transition: background 0.15s;
 }
 
-.btn:hover { opacity: 0.9; }
+.btn:hover { background: var(--accent-strong); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-ghost {
   background: transparent;
   color: var(--text-muted);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 7px 12px;
   font-size: 13px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
 
 .btn-ghost.active {
-  color: var(--accent);
+  color: var(--accent-strong);
   border-color: var(--accent);
   background: var(--accent-soft);
 }
@@ -98,7 +107,7 @@ input:focus, select:focus {
   background: transparent;
   color: var(--red);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 4px 8px;
   font-size: 13px;
 }
@@ -132,7 +141,7 @@ table {
 th {
   text-align: left;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 12.5px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -151,7 +160,7 @@ tr:last-child td { border-bottom: none; }
   background: var(--red-soft);
   border: 1px solid var(--red);
   color: var(--red);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 13.5px;
 }

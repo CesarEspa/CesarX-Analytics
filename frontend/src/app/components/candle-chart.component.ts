@@ -28,6 +28,7 @@ import { PriceHistoryPoint } from '../core/models';
 })
 export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() points: PriceHistoryPoint[] = [];
+  @Input() intraday = false;
 
   @ViewChild('container', { static: true }) container!: ElementRef<HTMLDivElement>;
 
@@ -44,24 +45,24 @@ export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy
       height: element.clientHeight,
       layout: {
         background: { color: 'transparent' },
-        textColor: '#8b9bb4',
+        textColor: '#82807a',
       },
       grid: {
-        vertLines: { color: '#1f2a4455' },
-        horzLines: { color: '#1f2a4455' },
+        vertLines: { color: '#e3e0d580' },
+        horzLines: { color: '#e3e0d580' },
       },
-      rightPriceScale: { borderColor: '#1f2a44' },
-      timeScale: { borderColor: '#1f2a44' },
+      rightPriceScale: { borderColor: '#e3e0d5' },
+      timeScale: { borderColor: '#e3e0d5' },
       crosshair: { mode: 0 },
     });
 
     this.candleSeries = this.chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderUpColor: '#22c55e',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      upColor: '#1a7f5a',
+      downColor: '#bf4d43',
+      borderUpColor: '#1a7f5a',
+      borderDownColor: '#bf4d43',
+      wickUpColor: '#1a7f5a',
+      wickDownColor: '#bf4d43',
     });
 
     this.volumeSeries = this.chart.addHistogramSeries({
@@ -81,7 +82,7 @@ export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['points'] && this.chart) {
+    if ((changes['points'] || changes['intraday']) && this.chart) {
       this.renderData();
     }
   }
@@ -96,10 +97,16 @@ export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy
       return;
     }
 
+    // Epoch timestamps support both daily and intraday candles; the axis
+    // shows times only on intraday views.
+    this.chart?.applyOptions({
+      timeScale: { timeVisible: this.intraday, secondsVisible: false },
+    });
+
     const candles: CandlestickData[] = this.points
       .filter((p) => p.open !== null && p.high !== null && p.low !== null)
       .map((p) => ({
-        time: p.date as Time,
+        time: p.timestamp as Time,
         open: p.open!,
         high: p.high!,
         low: p.low!,
@@ -109,9 +116,9 @@ export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy
     const volumes: HistogramData[] = this.points
       .filter((p) => p.volume !== null)
       .map((p, i, arr) => ({
-        time: p.date as Time,
+        time: p.timestamp as Time,
         value: p.volume!,
-        color: i > 0 && p.close < arr[i - 1].close ? '#ef444455' : '#22c55e55',
+        color: i > 0 && p.close < arr[i - 1].close ? '#bf4d4340' : '#1a7f5a40',
       }));
 
     this.candleSeries.setData(candles);

@@ -127,7 +127,11 @@ public class MarketDataService {
     }
 
     public PriceHistoryResponse getHistory(String symbol, String range) {
-        JsonNode result = fetchChart(symbol, range, "1d");
+        return getHistory(symbol, range, "1d");
+    }
+
+    public PriceHistoryResponse getHistory(String symbol, String range, String interval) {
+        JsonNode result = fetchChart(symbol, range, interval);
         return new PriceHistoryResponse(symbol.toUpperCase(), range, extractPoints(result));
     }
 
@@ -212,10 +216,12 @@ public class MarketDataService {
                 continue; // market holiday / no trade that session
             }
 
-            LocalDate date = Instant.ofEpochSecond(timestamps.get(i).asLong()).atZone(ZoneOffset.UTC).toLocalDate();
+            long epochSeconds = timestamps.get(i).asLong();
+            LocalDate date = Instant.ofEpochSecond(epochSeconds).atZone(ZoneOffset.UTC).toLocalDate();
 
             points.add(new PriceHistoryPoint(
                     date,
+                    epochSeconds,
                     decimalAt(quote.path("open"), i),
                     decimalAt(quote.path("high"), i),
                     decimalAt(quote.path("low"), i),

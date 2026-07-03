@@ -103,7 +103,7 @@ import { EtfResponse, PortfolioPositionRequest, PortfolioSummary } from '../core
       gap: 12px; margin-bottom: 16px;
     }
     .total {
-      background: #0d1424; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px;
       padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
     }
     .total span { font-size: 12.5px; }

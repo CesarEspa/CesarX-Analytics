@@ -37,6 +37,7 @@ export interface PriceQuote {
 
 export interface PriceHistoryPoint {
   date: string; // yyyy-MM-dd
+  timestamp: number; // epoch seconds (needed for intraday candles)
   open: number | null;
   high: number | null;
   low: number | null;

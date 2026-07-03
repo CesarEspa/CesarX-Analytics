@@ -52,10 +52,10 @@ import { NewsAnalysis, Sentiment } from '../core/models';
     .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; }
     h2 { font-size: 17px; }
     .outlook {
-      background: var(--accent-soft); border: 1px solid #3b82f655;
-      border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+      background: var(--accent-soft); border: 1px solid #d9775755;
+      border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
     }
-    .outlook-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); }
+    .outlook-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-strong); }
     .outlook p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
     .articles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; max-height: 420px; overflow-y: auto; }
     li { display: flex; gap: 10px; align-items: flex-start; }

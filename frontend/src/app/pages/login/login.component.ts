@@ -72,20 +72,20 @@ import { ApiError } from '../../core/models';
     .logo h1 { font-size: 20px; }
     .logo p { margin: 2px 0 0; font-size: 13px; }
     .logo-mark {
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
       color: #fff; font-weight: 800; font-size: 18px;
       width: 46px; height: 46px; border-radius: 12px;
       display: flex; align-items: center; justify-content: center;
     }
     .tabs {
       display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-      background: #0d1424; border-radius: 10px; padding: 5px; margin-bottom: 20px;
+      background: var(--bg-inset); border-radius: 12px; padding: 5px; margin-bottom: 20px;
     }
     .tab {
       background: transparent; border: none; color: var(--text-muted);
-      padding: 9px; border-radius: 7px; font-size: 14px; font-weight: 600;
+      padding: 9px; border-radius: 8px; font-size: 14px; font-weight: 600;
     }
-    .tab.active { background: var(--bg-card); color: var(--text); }
+    .tab.active { background: var(--bg-card); color: var(--text); box-shadow: var(--shadow); }
     form { display: flex; flex-direction: column; gap: 14px; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--text-muted); }
     .submit { margin-top: 6px; height: 42px; display: flex; align-items: center; justify-content: center; }
