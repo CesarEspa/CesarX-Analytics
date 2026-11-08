@@ -47,6 +47,15 @@ def _build_features(closes: pd.Series) -> pd.DataFrame:
     return df
 
 
+def confidence_label(r2: float) -> str:
+    """Label from out-of-sample R²: HIGH needs over 30% of variance explained."""
+    if r2 > 0.30:
+        return "HIGH"
+    if r2 > 0.10:
+        return "MEDIUM"
+    return "LOW"
+
+
 def predict_trend(symbol: str) -> dict:
     history = yf.Ticker(symbol).history(period="5y", interval="1d", auto_adjust=True)
     if history.empty or "Close" not in history:
@@ -90,14 +99,7 @@ def predict_trend(symbol: str) -> dict:
     else:
         direction = "SIDEWAYS"
 
-    # Financial R² on returns is typically tiny; anything positive out-of-sample
-    # already carries some signal.
-    if r2 > 0.05:
-        confidence = "HIGH"
-    elif r2 > 0.0:
-        confidence = "MEDIUM"
-    else:
-        confidence = "LOW"
+    confidence = confidence_label(r2)
 
     return {
         "symbol": symbol.upper(),

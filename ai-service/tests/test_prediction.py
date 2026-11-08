@@ -13,6 +13,22 @@ class FakeTicker:
         return pd.DataFrame({"Close": self.closes})
 
 
+@pytest.mark.parametrize(
+    "r2,expected",
+    [
+        (-0.2, "LOW"),
+        (0.0, "LOW"),
+        (0.0519, "LOW"),
+        (0.10, "LOW"),
+        (0.11, "MEDIUM"),
+        (0.30, "MEDIUM"),
+        (0.31, "HIGH"),
+    ],
+)
+def test_confidence_label_follows_explained_variance(r2, expected):
+    assert prediction.confidence_label(r2) == expected
+
+
 def series(days, seed=7, drift=0.0005, vol=0.01):
     rng = np.random.default_rng(seed)
     values = 100 * np.cumprod(1 + rng.normal(drift, vol, days))

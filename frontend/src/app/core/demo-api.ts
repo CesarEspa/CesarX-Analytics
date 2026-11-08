@@ -243,7 +243,7 @@ function prediction(etf: Seed): Prediction {
     predicted_price: round(current * (1 + returnPct / 100)),
     predicted_return_pct: returnPct,
     direction: returnPct > 2 ? 'UP' : returnPct < -2 ? 'DOWN' : 'SIDEWAYS',
-    confidence: h % 3 === 0 ? 'LOW' : 'MEDIUM',
+    confidence: 'LOW',
     model: 'valores simulados del modo demo',
     holdout_r2: round((h % 8) / 100),
     trained_samples: SESSIONS,
