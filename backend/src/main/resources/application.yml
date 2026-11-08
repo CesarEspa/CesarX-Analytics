@@ -45,6 +45,12 @@ app:
   ai-service:
     base-url: ${AI_SERVICE_URL:http://localhost:8000}
 
+  mail:
+    # API HTTPS de Brevo: el plan gratuito de Render bloquea SMTP. Sin clave, no se envían correos.
+    brevo-api-key: ${BREVO_API_KEY:}
+    from: ${MAIL_FROM:}
+    reset-page-url: ${RESET_PAGE_URL:https://cesarespa.github.io/CesarX-Analytics/reset-password}
+
   alerts:
     check-interval-ms: ${ALERTS_CHECK_INTERVAL_MS:300000} # 5 min
 

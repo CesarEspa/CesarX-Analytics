@@ -181,15 +181,26 @@ Requiere el backend corriendo (`cd backend && ./mvnw spring-boot:run`) y Postgre
 ### Stack
 
 - Python 3 + FastAPI + Uvicorn
-- `yfinance` para histórico de precios (5 años)
-- `scikit-learn` (Ridge regression) para la predicción de tendencia a 1 mes
-- NewsAPI para noticias recientes por ETF
-- SDK `anthropic` — Claude clasifica el sentimiento de cada noticia y escribe un outlook en español
+- `yfinance` para precios, volumen, VIX y bono a 10 años (10 años de historia)
+- `scikit-learn`: Ridge, Random Forest, Gradient Boosting y ensamble, comparados contra la media histórica
+- Noticias de Yahoo Finance sin clave, o NewsAPI si hay clave
+- SDK `anthropic` — Claude clasifica el sentimiento si hay clave; sin ella, un conteo transparente de palabras clave
+
+### Metodología de la predicción
+
+1. **Validación walk-forward** de 5 bloques con purga de 21 sesiones entre entrenamiento y prueba, porque los retornos mensuales se solapan.
+2. **Elección y evaluación separadas**: el modelo se elige en los primeros 3 bloques y se mide en los 2 últimos, que no participan en la elección.
+3. **Referencia obligatoria**: si ningún modelo supera a la media histórica en los bloques finales, se usa la media. El R² es out-of-sample contra esa referencia.
+4. **Significancia**: bootstrap por bloques al 95%. Sin ventaja significativa, la confianza siempre es baja.
+5. **Incertidumbre**: intervalo conformal del 80% calibrado con errores fuera de muestra y comprobado en los bloques finales.
+6. **Noticias aparte**: no entran al modelo porque no hay historial de titulares con el que validarlas.
+
+Resultado medido el 8 de noviembre de 2026 en los 10 activos: 4 superaron a la media histórica (R² entre 0,008 y 0,056) y ninguno con ventaja estadísticamente significativa. La cobertura real del intervalo estuvo entre 58% y 94%. Es lo esperable a un mes vista: la app expone esa incertidumbre en lugar de ocultarla.
 
 ### Endpoints
 
 - `GET /health` — estado del servicio y qué API keys están configuradas
-- `GET /predict/{symbol}` — predicción a ~30 días: precio esperado, retorno %, dirección (UP/DOWN/SIDEWAYS) y confianza basada en R² out-of-sample
+- `GET /predict/{symbol}` — proyección a ~30 días con rango, comparación de modelos, lectura del historial y trayectoria para la gráfica
 - `GET /news/{symbol}` — noticias de los últimos 7 días con sentimiento por artículo (positivo/negativo/neutral) + outlook general
 
 El backend Java los expone vía proxy en `/api/ai/predict/{symbol}` y `/api/ai/news/{symbol}` (protegidos con JWT).
@@ -204,9 +215,13 @@ copy .env.example .env                          # y rellena NEWS_API_KEY y ANTHR
 venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
-La predicción funciona sin API keys. El análisis de noticias requiere:
-- `NEWS_API_KEY` — gratis en https://newsapi.org (100 requests/día)
-- `ANTHROPIC_API_KEY` — https://platform.claude.com
+La predicción y las noticias funcionan sin API keys. Opcionales:
+- `NEWS_API_KEY` — otra fuente de titulares, https://newsapi.org
+- `ANTHROPIC_API_KEY` — análisis de sentimiento con Claude, https://platform.claude.com
+
+### Recuperar la contraseña
+
+Las contraseñas se guardan con BCrypt y no se pueden consultar, solo reemplazar. El backend envía un enlace de un solo uso (30 minutos, solo se guarda su hash) mediante la API HTTPS de Brevo, porque el plan gratuito de Render bloquea SMTP. Requiere `BREVO_API_KEY` y `MAIL_FROM` (un remitente verificado en Brevo).
 
 ### Tiempo real
 

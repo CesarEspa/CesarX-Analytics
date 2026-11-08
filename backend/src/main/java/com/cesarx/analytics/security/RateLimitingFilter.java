@@ -31,6 +31,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             new AntPathRequestMatcher("/api/ai/news/**")
     );
 
+    private static final List<AntPathRequestMatcher> PASSWORD_MATCHERS = List.of(
+            new AntPathRequestMatcher("/api/auth/forgot-password", "POST"),
+            new AntPathRequestMatcher("/api/auth/reset-password", "POST")
+    );
+
+    private static final int PASSWORD_LIMIT = 10;
     private static final int REGISTER_LIMIT = 5;
     private static final long REGISTER_WINDOW_MS = 60 * 60 * 1000L; // 1 hour
 
@@ -38,6 +44,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private static final long AI_WINDOW_MS = 60 * 1000L; // 1 minute
 
     private final ConcurrentHashMap<String, WindowCounter> registerCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, WindowCounter> passwordCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, WindowCounter> aiCounters = new ConcurrentHashMap<>();
 
     @Override
@@ -48,6 +55,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         String clientKey = clientKey(request);
 
         if (REGISTER_MATCHER.matches(request) && exceedsLimit(registerCounters, clientKey, REGISTER_LIMIT, REGISTER_WINDOW_MS)) {
+            reject(response);
+            return;
+        }
+
+        if (PASSWORD_MATCHERS.stream().anyMatch(m -> m.matches(request))
+                && exceedsLimit(passwordCounters, clientKey, PASSWORD_LIMIT, REGISTER_WINDOW_MS)) {
             reject(response);
             return;
         }
@@ -93,6 +106,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     public void cleanupExpiredWindows() {
         long now = System.currentTimeMillis();
         registerCounters.entrySet().removeIf(e -> now - e.getValue().windowStart > REGISTER_WINDOW_MS * 2);
+        passwordCounters.entrySet().removeIf(e -> now - e.getValue().windowStart > REGISTER_WINDOW_MS * 2);
         aiCounters.entrySet().removeIf(e -> now - e.getValue().windowStart > AI_WINDOW_MS * 2);
     }
 

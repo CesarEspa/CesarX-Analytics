@@ -26,6 +26,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request, null);
     }
 
+    @ExceptionHandler(InvalidResetTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidResetToken(InvalidResetTokenException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(MarketDataException.class)
     public ResponseEntity<ApiErrorResponse> handleMarketData(MarketDataException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), request, null);
