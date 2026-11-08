@@ -74,7 +74,7 @@ const ALERT_LABELS: Record<AlertType, string> = {
   `,
   styles: [`
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    h2 { font-size: 17px; }
+    h2 { font-size: 26px; }
     .add-form { display: grid; grid-template-columns: 100px 1fr 1fr auto; gap: 10px; margin-bottom: 16px; }
     .alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
     li {

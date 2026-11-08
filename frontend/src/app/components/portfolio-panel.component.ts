@@ -97,13 +97,13 @@ import { EtfResponse, PortfolioPositionRequest, PortfolioSummary } from '../core
   `,
   styles: [`
     .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    h2 { font-size: 17px; }
+    h2 { font-size: 26px; }
     .totals {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 12px; margin-bottom: 16px;
     }
     .total {
-      background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--bg-inset); border: 1px solid var(--border); border-radius: 2px;
       padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
     }
     .total span { font-size: 12.5px; }

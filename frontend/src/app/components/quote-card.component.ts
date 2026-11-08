@@ -7,53 +7,43 @@ import { PriceQuote } from '../core/models';
   standalone: true,
   imports: [DecimalPipe],
   template: `
-    <div class="card quote-card" [class.selected]="selected" (click)="select.emit(symbol)">
-      <div class="head">
-        <div class="identity">
-          <div class="symbol">{{ symbol }}</div>
-          <div class="name muted">{{ name }}</div>
-        </div>
+    <button type="button" class="quote" [class.selected]="selected" [attr.aria-pressed]="selected" (click)="select.emit(symbol)">
+      <span class="head">
+        <span class="symbol">{{ symbol }}</span>
         @if (quote) {
           <span class="badge" [class]="badgeClass()">{{ signalLabel() }}</span>
         }
-      </div>
+      </span>
+      <span class="name">{{ name }}</span>
 
       @if (quote) {
-        <div class="price-row">
-          <span class="price">{{ quote.currentPrice | number: '1.2-2' }}</span>
-          <span class="currency muted">{{ quote.currency }}</span>
-        </div>
-        <div class="change" [class.positive]="isUp()" [class.negative]="!isUp()">
-          {{ isUp() ? '▲' : '▼' }}
-          {{ quote.change | number: '1.2-2' }}
-          ({{ quote.changePercent | number: '1.2-2' }}%)
-        </div>
-        <div class="range muted">
-          Día: {{ quote.dayLow | number: '1.2-2' }} — {{ quote.dayHigh | number: '1.2-2' }}
-        </div>
+        <span class="price mono">{{ quote.currentPrice | number: '1.2-2' }}</span>
+        <span class="change mono" [class.positive]="isUp()" [class.negative]="!isUp()">
+          {{ isUp() ? '+' : '' }}{{ quote.changePercent | number: '1.2-2' }}%
+        </span>
       } @else if (failed) {
-        <div class="muted small">Sin datos de mercado</div>
+        <span class="name failed">Sin datos de mercado</span>
       } @else {
-        <div class="loading"><span class="spinner"></span></div>
+        <span class="loading"><span class="spinner"></span></span>
       }
-    </div>
+    </button>
   `,
   styles: [`
-    .quote-card { cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
-    .quote-card:hover { border-color: var(--accent); }
-    .quote-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .identity { min-width: 0; }
-    .head .badge { flex: none; }
-    .symbol { font-size: 18px; font-weight: 700; }
-    .name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .price-row { display: flex; align-items: baseline; gap: 6px; margin-top: 12px; }
-    .price { font-size: 26px; font-weight: 700; }
-    .currency { font-size: 13px; }
-    .change { font-size: 14px; font-weight: 600; margin-top: 2px; }
-    .range { font-size: 12.5px; margin-top: 8px; }
-    .small { font-size: 13px; margin-top: 12px; }
-    .loading { margin-top: 14px; }
+    :host { display: block; min-width: 0; }
+    .quote {
+      display: flex; flex-direction: column; width: 100%; height: 100%; text-align: left;
+      background: var(--bg-card); color: var(--text); border: 0; border-top: 2px solid var(--border);
+      padding: 12px 14px; transition: border-color 0.2s, background 0.2s;
+    }
+    .quote:hover { border-top-color: var(--text); background: var(--bg-inset); }
+    .quote.selected { border-top-color: var(--accent); background: var(--bg-inset); }
+    .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .symbol { font-family: var(--display); font-size: 22px; line-height: 1.1; }
+    .name { color: var(--text-dim); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .failed { margin-top: 10px; }
+    .price { font-size: 19px; font-weight: 700; margin-top: 10px; }
+    .change { font-size: 12.5px; font-weight: 700; }
+    .loading { margin-top: 12px; }
   `],
 })
 export class QuoteCardComponent {
@@ -71,9 +61,9 @@ export class QuoteCardComponent {
 
   signalLabel(): string {
     switch (this.quote?.signal) {
-      case 'BUY': return 'Comprar';
-      case 'WAIT': return 'Esperar';
-      default: return 'Mantener';
+      case 'BUY': return 'Alza';
+      case 'WAIT': return 'Baja';
+      default: return 'Neutral';
     }
   }
 

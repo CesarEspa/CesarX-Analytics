@@ -116,9 +116,64 @@ export interface Prediction {
   direction: 'UP' | 'DOWN' | 'SIDEWAYS';
   confidence: 'LOW' | 'MEDIUM' | 'HIGH';
   model: string;
+  best_candidate: string;
   holdout_r2: number;
   trained_samples: number;
+  prob_up_pct: number;
+  interval: {
+    level: number;
+    low_price: number;
+    high_price: number;
+    low_return_pct: number;
+    high_return_pct: number;
+  };
+  validation: {
+    method: string;
+    holdout_rows: number;
+    independent_periods: number;
+    beats_baseline: boolean;
+    reliable: boolean;
+    interval_coverage_pct: number;
+    baseline_directional_accuracy_pct: number;
+  };
+  candidates: ModelCandidate[];
+  top_factors: { feature: string; label: string; weight_pct: number }[];
+  history: HistoryReading;
+  forecast_path: ForecastPoint[];
   as_of: string;
+}
+
+export interface ModelCandidate {
+  name: string;
+  r2_oos: number;
+  mae_pct: number;
+  directional_accuracy_pct: number;
+  selected: boolean;
+}
+
+export interface ForecastPoint {
+  date: string;
+  timestamp: number;
+  expected: number;
+  low: number;
+  high: number;
+}
+
+export interface HistoryReading {
+  trend: 'bullish' | 'bearish' | 'mixed';
+  summary: string;
+  return_1m_pct: number | null;
+  return_3m_pct: number | null;
+  return_6m_pct: number | null;
+  return_1y_pct: number | null;
+  volatility_pct: number;
+  typical_volatility_pct: number;
+  drawdown_pct: number;
+  high_52w: number;
+  low_52w: number;
+  sma50: number;
+  sma200: number;
+  rsi: number;
 }
 
 export type Sentiment = 'positive' | 'negative' | 'neutral';
@@ -137,6 +192,7 @@ export interface NewsAnalysis {
   symbol: string;
   overall_sentiment: Sentiment;
   outlook: string;
+  analysis_method: 'claude' | 'keywords' | 'none' | 'demo';
   articles: NewsArticle[];
 }
 

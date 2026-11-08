@@ -38,6 +38,14 @@ export class AuthService {
       .pipe(tap((res) => this.storeSession(res)));
   }
 
+  forgotPassword(email: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/api/auth/forgot-password`, { email });
+  }
+
+  resetPassword(token: string, password: string): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/api/auth/reset-password`, { token, password });
+  }
+
   /** Opens the dashboard with simulated data: needs neither an account nor the backend. */
   startDemo(): void {
     this.storeSession({ token: DEMO_TOKEN, tokenType: 'Bearer', username: DEMO_USERNAME, role: 'USER', expiresInMs: 0 });

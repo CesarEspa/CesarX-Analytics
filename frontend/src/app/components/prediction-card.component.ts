@@ -8,67 +8,88 @@ import { Prediction } from '../core/models';
   imports: [DecimalPipe],
   template: `
     <div class="card">
-      <div class="head">
-        <h2>Predicción a 1 mes</h2>
-        <span class="muted model-tag">scikit-learn</span>
-      </div>
+      <div class="label red">Proyección validada</div>
+      <h2>A 1 semana</h2>
 
       @if (loading) {
-        <div class="loading"><span class="spinner"></span></div>
+        <div class="loading"><span class="spinner"></span> <span class="muted small">Entrenando y validando modelos…</span></div>
       } @else if (error) {
-        <p class="muted err">{{ error }}</p>
-      } @else if (prediction) {
-        <div class="main-row">
-          <div class="arrow" [class]="directionClass()">
-            {{ directionArrow() }}
-          </div>
-          <div>
-            <div class="price-line">
-              <span class="muted">{{ prediction.current_price | number: '1.2-2' }}</span>
-              <span class="sep">→</span>
-              <strong>{{ prediction.predicted_price | number: '1.2-2' }} USD</strong>
-            </div>
-            <div class="return" [class.positive]="prediction.predicted_return_pct >= 0"
-                 [class.negative]="prediction.predicted_return_pct < 0">
-              {{ prediction.predicted_return_pct >= 0 ? '+' : '' }}{{ prediction.predicted_return_pct | number: '1.2-2' }}%
-              <span class="muted horizon">en ~30 días</span>
-            </div>
-          </div>
+        <p class="muted small">{{ error }}</p>
+      } @else if (prediction; as p) {
+        <div class="headline mono">
+          <span class="target">{{ p.predicted_price | number: '1.2-2' }}</span>
+          <span [class.positive]="p.predicted_return_pct >= 0" [class.negative]="p.predicted_return_pct < 0">
+            {{ p.predicted_return_pct >= 0 ? '+' : '' }}{{ p.predicted_return_pct | number: '1.2-2' }}%
+          </span>
+        </div>
+        <p class="muted small">Desde {{ p.current_price | number: '1.2-2' }} USD · {{ directionLabel() }}</p>
+
+        <div class="range">
+          <div><span class="label">Rango {{ p.interval.level }}%</span><strong class="mono">{{ p.interval.low_price | number: '1.2-2' }} – {{ p.interval.high_price | number: '1.2-2' }}</strong></div>
+          <div><span class="label">Prob. de subir</span><strong class="mono">{{ p.prob_up_pct | number: '1.0-0' }}%</strong></div>
         </div>
 
-        <div class="meta">
-          <span class="badge" [class]="confidenceClass()">Confianza: {{ confidenceLabel() }}</span>
-          <span class="muted samples">{{ prediction.trained_samples }} días de entrenamiento · R² {{ prediction.holdout_r2 }}</span>
+        <div class="verdict">
+          <span class="badge" [class]="confidenceClass()">Confianza {{ confidenceLabel() }}</span>
+          <span class="muted model">Modelo: {{ p.model }}</span>
         </div>
+        <p class="note">{{ verdictText() }}</p>
 
-        <p class="muted disclaimer">
-          Modelo estadístico simple ({{ prediction.model }}). No es asesoría financiera.
-        </p>
+        <details>
+          <summary>Cómo se validó</summary>
+          <p class="muted small">
+            {{ p.validation.method }}. {{ p.trained_samples }} sesiones; los últimos {{ p.validation.independent_periods }} periodos semanales no se usaron para elegir el modelo.
+            En esos periodos, el rango contuvo el {{ p.validation.interval_coverage_pct | number: '1.0-0' }}% de los resultados reales.
+          </p>
+          <table>
+            <thead><tr><th>Modelo</th><th>R²</th><th>Error</th><th>Acierto</th></tr></thead>
+            <tbody>
+              @for (c of p.candidates; track c.name) {
+                <tr [class.chosen]="c.selected">
+                  <td>{{ c.name }}</td>
+                  <td class="mono">{{ c.r2_oos | number: '1.3-3' }}</td>
+                  <td class="mono">{{ c.mae_pct | number: '1.1-1' }}%</td>
+                  <td class="mono">{{ c.directional_accuracy_pct | number: '1.0-0' }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          @if (p.top_factors.length > 0) {
+            <p class="label factors-title">Lo que más pesó en {{ p.best_candidate }}</p>
+            <ul>
+              @for (f of p.top_factors; track f.feature) {
+                <li><span>{{ f.label }}</span><span class="mono">{{ f.weight_pct | number: '1.0-0' }}%</span></li>
+              }
+            </ul>
+          }
+        </details>
+
+        <p class="muted disclaimer">Estimación estadística. No es asesoría financiera.</p>
       }
     </div>
   `,
   styles: [`
-    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-    h2 { font-size: 17px; }
-    .model-tag { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
-    .main-row { display: flex; align-items: center; gap: 16px; }
-    .arrow {
-      font-size: 34px; width: 62px; height: 62px; border-radius: 14px;
-      display: flex; align-items: center; justify-content: center; font-weight: 800;
-    }
-    .arrow.up { background: var(--green-soft); color: var(--green); }
-    .arrow.down { background: var(--red-soft); color: var(--red); }
-    .arrow.side { background: var(--amber-soft); color: var(--amber); }
-    .price-line { font-size: 17px; display: flex; gap: 8px; align-items: baseline; }
-    .price-line strong { font-size: 21px; }
-    .sep { color: var(--text-muted); }
-    .return { font-size: 15px; font-weight: 700; margin-top: 4px; }
-    .horizon { font-weight: 400; font-size: 13px; }
-    .meta { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
-    .samples { font-size: 12.5px; }
-    .disclaimer { font-size: 12px; margin: 14px 0 0; }
-    .loading { padding: 20px 0; }
-    .err { font-size: 13.5px; }
+    h2 { font-size: 26px; margin-top: 6px; }
+    .headline { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 16px; font-size: 16px; font-weight: 700; }
+    .target { font-family: var(--display); font-weight: 400; font-size: 54px; line-height: 1; }
+    .small { font-size: 13px; margin: 6px 0 0; }
+    .range { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; margin-top: 16px; padding: 12px 0; border-block: 1px solid var(--border); }
+    .range > div { display: flex; flex-direction: column; gap: 3px; }
+    .range strong { font-size: 15px; }
+    .verdict { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .model { font-size: 12.5px; }
+    .note { font-size: 13.5px; margin: 8px 0 0; }
+    details { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+    summary { cursor: pointer; font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+    summary:hover { color: var(--accent); }
+    table { margin-top: 10px; font-size: 12.5px; }
+    th, td { padding: 6px 4px; }
+    .chosen td { color: var(--accent); font-weight: 700; }
+    .factors-title { margin: 14px 0 4px; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 4px 0; }
+    .disclaimer { font-size: 11.5px; margin: 14px 0 0; }
+    .loading { padding: 24px 0; display: flex; align-items: center; gap: 10px; }
   `],
 })
 export class PredictionCardComponent {
@@ -76,27 +97,30 @@ export class PredictionCardComponent {
   @Input() loading = false;
   @Input() error: string | null = null;
 
-  directionArrow(): string {
+  directionLabel(): string {
     switch (this.prediction?.direction) {
-      case 'UP': return '↗';
-      case 'DOWN': return '↘';
-      default: return '→';
+      case 'UP': return 'tendencia al alza';
+      case 'DOWN': return 'tendencia a la baja';
+      default: return 'tendencia lateral';
     }
   }
 
-  directionClass(): string {
-    switch (this.prediction?.direction) {
-      case 'UP': return 'arrow up';
-      case 'DOWN': return 'arrow down';
-      default: return 'arrow side';
+  verdictText(): string {
+    const p = this.prediction!;
+    if (p.validation.reliable) {
+      return 'El modelo superó a la media histórica con respaldo estadístico en datos que no vio.';
     }
+    if (p.validation.beats_baseline) {
+      return 'Superó por poco a la media histórica, pero la ventaja no es estadísticamente sólida.';
+    }
+    return `Ningún modelo superó a la media histórica en datos no vistos, así que se usa esa referencia.`;
   }
 
   confidenceLabel(): string {
     switch (this.prediction?.confidence) {
-      case 'HIGH': return 'Alta';
-      case 'MEDIUM': return 'Media';
-      default: return 'Baja';
+      case 'HIGH': return 'alta';
+      case 'MEDIUM': return 'media';
+      default: return 'baja';
     }
   }
 

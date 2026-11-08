@@ -19,8 +19,8 @@ import { resetDemoData } from '../core/demo-api';
       position: fixed; left: 12px; bottom: 12px; z-index: 900;
       max-width: calc(100vw - 24px);
       display: flex; align-items: center; gap: 8px;
-      background: var(--text); color: #fff;
-      padding: 8px 12px; border-radius: 10px;
+      background: var(--accent-strong); color: #fff;
+      padding: 8px 12px; border-radius: 2px;
       font-size: 12.5px; box-shadow: var(--shadow);
     }
     .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }

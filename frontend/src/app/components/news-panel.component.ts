@@ -9,7 +9,7 @@ import { NewsAnalysis, Sentiment } from '../core/models';
   template: `
     <div class="card">
       <div class="head">
-        <h2>Noticias y sentimiento</h2>
+        <div><div class="label">Hoy</div><h2>Noticias actuales</h2></div>
         @if (analysis) {
           <span class="badge" [class]="badgeClass(analysis.overall_sentiment)">
             {{ sentimentLabel(analysis.overall_sentiment) }}
@@ -18,12 +18,12 @@ import { NewsAnalysis, Sentiment } from '../core/models';
       </div>
 
       @if (loading) {
-        <div class="loading"><span class="spinner"></span> <span class="muted analyzing">Claude está analizando las noticias…</span></div>
+        <div class="loading"><span class="spinner"></span> <span class="muted analyzing">Analizando las noticias…</span></div>
       } @else if (error) {
         <p class="muted err">{{ error }}</p>
       } @else if (analysis) {
         <div class="outlook">
-          <span class="outlook-label">¿Qué podría pasar?</span>
+          <span class="outlook-label">{{ methodLabel() }}</span>
           <p>{{ analysis.outlook }}</p>
         </div>
 
@@ -50,12 +50,12 @@ import { NewsAnalysis, Sentiment } from '../core/models';
   `,
   styles: [`
     .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; }
-    h2 { font-size: 17px; }
+    h2 { font-size: 26px; margin-top: 6px; }
     .outlook {
-      background: var(--accent-soft); border: 1px solid #d9775755;
-      border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+      background: var(--accent-soft); border-left: 2px solid var(--accent);
+      padding: 12px 14px; margin-bottom: 14px;
     }
-    .outlook-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-strong); }
+    .outlook-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); }
     .outlook p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
     .articles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; max-height: 420px; overflow-y: auto; }
     li { display: flex; gap: 10px; align-items: flex-start; }
@@ -76,6 +76,15 @@ export class NewsPanelComponent {
   @Input() analysis: NewsAnalysis | null = null;
   @Input() loading = false;
   @Input() error: string | null = null;
+
+  methodLabel(): string {
+    switch (this.analysis?.analysis_method) {
+      case 'claude': return 'Lectura de Claude';
+      case 'keywords': return 'Tono por palabras clave';
+      case 'demo': return 'Texto simulado';
+      default: return 'Sin datos';
+    }
+  }
 
   sentimentLabel(sentiment: Sentiment): string {
     switch (sentiment) {

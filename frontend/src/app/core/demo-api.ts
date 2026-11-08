@@ -4,6 +4,7 @@ import {
   AlertItem,
   AlertRequest,
   EtfResponse,
+  ForecastPoint,
   LightQuote,
   NewsAnalysis,
   PortfolioPosition,
@@ -28,6 +29,7 @@ const STORE_KEY = 'cesarx.demo.v1';
 const TOKEN_KEY = 'cesarx.token';
 const DAY_SECONDS = 86_400;
 const SESSIONS = 1_300;
+const HORIZON = 5;
 
 export function isDemoSession(): boolean {
   return localStorage.getItem(TOKEN_KEY) === DEMO_TOKEN;
@@ -234,19 +236,93 @@ function quote(etf: Seed): PriceQuote {
 
 function prediction(etf: Seed): Prediction {
   const h = hash(`prediction:${etf.symbol}`);
-  const returnPct = round((h % 1100) / 100 - 3.5);
-  const current = livePrice(etf);
+  const returnPct = round((h % 500) / 100 - 1.8);
+  const bars = daily(etf);
+  const current = bars[SESSIONS - 1].close;
+  const low = returnPct - 3.6;
+  const high = returnPct + 3;
+  const r2 = round((h % 8) / 100);
+
+  const change = (days: number) => round((current / bars[SESSIONS - 1 - days].close - 1) * 100);
+  const closes = bars.map((b) => b.close);
+  const sma50 = round(average(closes.slice(-50)));
+  const sma200 = round(average(closes.slice(-200)));
+  const year = closes.slice(-252);
+  const high52 = Math.max(...year);
+  const trend = current > sma50 && sma50 > sma200 ? 'bullish' : current < sma50 && sma50 < sma200 ? 'bearish' : 'mixed';
+  const trendText = { bullish: 'alcista', bearish: 'bajista', mixed: 'mixta' }[trend];
+
+  const lastTimestamp = bars[SESSIONS - 1].timestamp;
+  const forecast_path: ForecastPoint[] = [];
+  let timestamp = lastTimestamp;
+  for (let step = 1; step <= HORIZON; step++) {
+    timestamp += DAY_SECONDS;
+    while ([0, 6].includes(new Date(timestamp * 1000).getUTCDay())) timestamp += DAY_SECONDS;
+    const fraction = step / HORIZON;
+    const root = Math.sqrt(fraction);
+    forecast_path.push({
+      date: isoDate(timestamp),
+      timestamp,
+      expected: round(current * (1 + (returnPct / 100) * fraction)),
+      low: round(current * (1 + (returnPct / 100) * fraction + ((low - returnPct) / 100) * root)),
+      high: round(current * (1 + (returnPct / 100) * fraction + ((high - returnPct) / 100) * root)),
+    });
+  }
+
   return {
     symbol: etf.symbol,
-    horizon_days: 30,
+    horizon_days: 7,
     current_price: current,
-    predicted_price: round(current * (1 + returnPct / 100)),
+    predicted_price: forecast_path[HORIZON - 1].expected,
     predicted_return_pct: returnPct,
-    direction: returnPct > 2 ? 'UP' : returnPct < -2 ? 'DOWN' : 'SIDEWAYS',
+    direction: returnPct > 1 ? 'UP' : returnPct < -1 ? 'DOWN' : 'SIDEWAYS',
     confidence: 'LOW',
-    model: 'valores simulados del modo demo',
-    holdout_r2: round((h % 8) / 100),
+    model: 'Simulado',
+    best_candidate: 'Simulado',
+    holdout_r2: r2,
     trained_samples: SESSIONS,
+    prob_up_pct: Math.min(85, Math.max(20, 58 + returnPct * 3)),
+    interval: {
+      level: 80,
+      low_price: forecast_path[HORIZON - 1].low,
+      high_price: forecast_path[HORIZON - 1].high,
+      low_return_pct: low,
+      high_return_pct: high,
+    },
+    validation: {
+      method: 'Valores simulados del modo demo',
+      holdout_rows: 500,
+      independent_periods: 100,
+      beats_baseline: r2 > 0,
+      reliable: false,
+      interval_coverage_pct: 80,
+      baseline_directional_accuracy_pct: 60,
+    },
+    candidates: [
+      { name: 'Media histórica', r2_oos: 0, mae_pct: 2.1, directional_accuracy_pct: 60, selected: false },
+      { name: 'Simulado', r2_oos: r2, mae_pct: 2, directional_accuracy_pct: 61, selected: true },
+    ],
+    top_factors: [
+      { feature: 'dist_sma200', label: 'Distancia a la media de 200 días', weight_pct: 34 },
+      { feature: 'volatility_21', label: 'Volatilidad de 1 mes', weight_pct: 26 },
+    ],
+    history: {
+      trend,
+      summary: `Datos simulados. Tendencia ${trendText} frente a las medias de 50 y 200 días.`,
+      return_1m_pct: change(21),
+      return_3m_pct: change(63),
+      return_6m_pct: change(126),
+      return_1y_pct: change(252),
+      volatility_pct: 24,
+      typical_volatility_pct: 22,
+      drawdown_pct: round((current / high52 - 1) * 100),
+      high_52w: round(high52),
+      low_52w: round(Math.min(...year)),
+      sma50,
+      sma200,
+      rsi: 52,
+    },
+    forecast_path,
     as_of: new Date().toISOString(),
   };
 }
@@ -266,6 +342,7 @@ function news(etf: Seed): NewsAnalysis {
   return {
     symbol: etf.symbol,
     overall_sentiment: 'neutral',
+    analysis_method: 'demo',
     outlook: `Texto de ejemplo: con la API real, Claude resume aquí el tono de las noticias de ${etf.symbol} y qué podría significar a corto plazo para quien tiene la posición.`,
     articles: [
       article(0, 'positive', `resultados del sector impulsan a ${etf.symbol}`, 'Una mejora de resultados suele favorecer al tenedor.'),
@@ -437,4 +514,4 @@ function respond(req: HttpRequest<unknown>) {
 }
 
 export const demoInterceptor: HttpInterceptorFn = (req, next) =>
-  isDemoSession() ? respond(req) : next(req);
+  isDemoSession() && !req.url.includes('/api/auth/') ? respond(req) : next(req);
