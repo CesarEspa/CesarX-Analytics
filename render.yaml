@@ -2,7 +2,7 @@
 # Los valores marcados con sync: false se escriben en el panel de Render, nunca aquí.
 services:
   - type: web
-    name: cesarx-analytics-backend
+    name: CesarX-Analytics
     runtime: docker
     plan: free
     region: ohio

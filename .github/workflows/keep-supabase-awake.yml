@@ -19,4 +19,4 @@ jobs:
         # --max-time is generous because Render's free tier also sleeps after
         # 15 min idle, so this ping may itself trigger a ~30-50s cold start
         # before ever reaching Supabase.
-        run: curl -f --max-time 90 https://cesarx-analytics-backend.onrender.com/actuator/health
+        run: curl -f --max-time 90 https://cesarx-analytics.onrender.com/actuator/health

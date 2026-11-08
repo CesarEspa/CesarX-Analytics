@@ -9,7 +9,7 @@ Proyecto de doble propósito:
 ## 🔗 Demo en vivo
 
 - **App:** https://cesarespa.github.io/CesarX-Analytics/ → botón **Probar la demo sin registrarme**
-- **API (Swagger):** https://cesarx-analytics-backend.onrender.com/swagger-ui/index.html
+- **API (Swagger):** https://cesarx-analytics.onrender.com/swagger-ui/index.html
 
 La demo no necesita cuenta ni servidor: `frontend/src/app/core/demo-api.ts` responde los mismos contratos que el backend, con **precios, noticias y predicciones simulados** y marcados como tales en pantalla. Crear una cuenta usa la API real con datos de Yahoo Finance.
 
