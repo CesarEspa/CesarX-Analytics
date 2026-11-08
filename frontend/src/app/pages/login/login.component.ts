@@ -1,9 +1,12 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../core/auth.service';
 import { ApiError } from '../../core/models';
+import { environment } from '../../../environments/environment';
+
+const HEALTH_TIMEOUT_MS = 90_000;
 
 @Component({
   selector: 'app-login',
@@ -19,6 +22,11 @@ import { ApiError } from '../../core/models';
             <p class="muted">ETF Intelligence Platform</p>
           </div>
         </div>
+
+        <button class="btn demo" type="button" (click)="auth.startDemo()">Probar la demo sin registrarme</button>
+        <p class="demo-note muted">Abre el panel con datos simulados. No necesita cuenta.</p>
+
+        <div class="divider"><span>o entra con tu cuenta</span></div>
 
         <div class="tabs">
           <button class="tab" [class.active]="!isRegister()" (click)="isRegister.set(false)">Iniciar sesión</button>
@@ -56,6 +64,15 @@ import { ApiError } from '../../core/models';
             }
           </button>
         </form>
+
+        <p class="server muted" [class.online]="server() === 'online'" role="status">
+          <span class="server-dot"></span>
+          @switch (server()) {
+            @case ('checking') { Despertando el servidor. Puede tardar hasta un minuto. }
+            @case ('online') { Servidor conectado. }
+            @case ('offline') { El servidor no está disponible ahora. Puedes usar la demo. }
+          }
+        </p>
       </div>
     </div>
   `,
@@ -89,19 +106,33 @@ import { ApiError } from '../../core/models';
     form { display: flex; flex-direction: column; gap: 14px; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--text-muted); }
     .submit { margin-top: 6px; height: 42px; display: flex; align-items: center; justify-content: center; }
+    .demo { width: 100%; height: 44px; }
+    .demo-note { margin: 8px 0 0; font-size: 12.5px; text-align: center; }
+    .divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--text-muted); font-size: 12.5px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .server { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; font-size: 12.5px; }
+    .server-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+    .server.online .server-dot { background: var(--green); }
   `],
 })
-export class LoginComponent {
-  private readonly auth = inject(AuthService);
+export class LoginComponent implements OnInit {
+  readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
   readonly isRegister = signal(false);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly server = signal<'checking' | 'online' | 'offline'>('checking');
 
   username = '';
   email = '';
   password = '';
+
+  ngOnInit(): void {
+    fetch(`${environment.apiBaseUrl}/actuator/health`, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) })
+      .then((response) => this.server.set(response.ok ? 'online' : 'offline'))
+      .catch(() => this.server.set('offline'));
+  }
 
   submit(): void {
     if (!this.username || !this.password || (this.isRegister() && !this.email)) {

@@ -1,0 +1,48 @@
+# Despliegue en Render (Blueprint): New + > Blueprint > selecciona este repositorio.
+# Los valores marcados con sync: false se escriben en el panel de Render, nunca aquí.
+services:
+  - type: web
+    name: cesarx-analytics-backend
+    runtime: docker
+    plan: free
+    region: ohio
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_SCHEMA
+        value: cesarx
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AI_SERVICE_URL
+        value: https://cesarx-analytics-ai.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://cesarespa.github.io
+
+  - type: web
+    name: cesarx-analytics-ai
+    runtime: docker
+    plan: free
+    region: ohio
+    rootDir: ai-service
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: NEWS_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

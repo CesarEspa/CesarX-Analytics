@@ -1,9 +1,10 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthResponse } from './models';
+import { DEMO_TOKEN, DEMO_USERNAME, isDemoSession } from './demo-api';
 
 const TOKEN_KEY = 'cesarx.token';
 const USERNAME_KEY = 'cesarx.username';
@@ -15,6 +16,7 @@ export class AuthService {
   private readonly baseUrl = environment.apiBaseUrl;
 
   readonly username = signal<string | null>(localStorage.getItem(USERNAME_KEY));
+  readonly isDemo = computed(() => this.username() !== null && isDemoSession());
 
   get token(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -34,6 +36,12 @@ export class AuthService {
     return this.http
       .post<AuthResponse>(`${this.baseUrl}/api/auth/register`, { username, email, password })
       .pipe(tap((res) => this.storeSession(res)));
+  }
+
+  /** Opens the dashboard with simulated data: needs neither an account nor the backend. */
+  startDemo(): void {
+    this.storeSession({ token: DEMO_TOKEN, tokenType: 'Bearer', username: DEMO_USERNAME, role: 'USER', expiresInMs: 0 });
+    this.router.navigate(['/']);
   }
 
   logout(): void {

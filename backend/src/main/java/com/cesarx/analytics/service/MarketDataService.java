@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -21,12 +22,15 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Pulls real-time and historical quotes from Yahoo Finance's public chart
@@ -42,11 +46,19 @@ public class MarketDataService {
 
     private static final int SHORT_WINDOW = 5;
     private static final int LONG_WINDOW = 20;
+    private static final int MAX_CACHED_CHARTS = 500;
+    private static final long MAX_STALE_MS = Duration.ofHours(1).toMillis();
+    private static final Duration YAHOO_TIMEOUT = Duration.ofSeconds(10);
 
     private final WebClient yahooFinanceWebClient;
     private final ObjectMapper objectMapper;
     private final EtfRepository etfRepository;
     private final PriceHistoryRepository priceHistoryRepository;
+
+    private final Map<String, CachedChart> chartCache = new ConcurrentHashMap<>();
+
+    @Value("${app.market-data.cache-ttl-ms:30000}")
+    private long cacheTtlMs = 30_000;
 
     public PriceQuoteResponse getQuote(String symbol) {
         JsonNode result = fetchChart(symbol, "6mo", "1d");
@@ -165,7 +177,37 @@ public class MarketDataService {
         return upserts;
     }
 
+    /**
+     * Comparte cada respuesta de Yahoo durante unos segundos para que el polling de
+     * los usuarios no dispare límites de peticiones (429). Si Yahoo falla, responde
+     * con el último dato conocido durante un máximo de una hora.
+     */
     private JsonNode fetchChart(String symbol, String range, String interval) {
+        String key = symbol.toUpperCase() + "|" + range + "|" + interval;
+        CachedChart cached = chartCache.get(key);
+        long now = System.currentTimeMillis();
+
+        if (cached != null && now - cached.fetchedAtMs() < cacheTtlMs) {
+            return cached.chart();
+        }
+
+        try {
+            JsonNode chart = fetchChartFromYahoo(symbol, range, interval);
+            if (chartCache.size() >= MAX_CACHED_CHARTS) {
+                chartCache.clear();
+            }
+            chartCache.put(key, new CachedChart(chart, now));
+            return chart;
+        } catch (MarketDataException e) {
+            if (cached != null && now - cached.fetchedAtMs() < MAX_STALE_MS) {
+                log.warn("Using last known data for {}: {}", symbol, e.getMessage());
+                return cached.chart();
+            }
+            throw e;
+        }
+    }
+
+    private JsonNode fetchChartFromYahoo(String symbol, String range, String interval) {
         try {
             String body = yahooFinanceWebClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/v8/finance/chart/{symbol}")
@@ -174,6 +216,7 @@ public class MarketDataService {
                             .build(symbol.toUpperCase()))
                     .retrieve()
                     .bodyToMono(String.class)
+                    .timeout(YAHOO_TIMEOUT)
                     .block();
 
             JsonNode root = objectMapper.readTree(body);
@@ -235,7 +278,7 @@ public class MarketDataService {
 
     private TechnicalSignal computeSignal(List<PriceHistoryPoint> points) {
         if (points.size() < LONG_WINDOW) {
-            return new TechnicalSignal(RecommendationSignal.HOLD, "Not enough historical data for a technical read yet");
+            return new TechnicalSignal(RecommendationSignal.HOLD, "Aún no hay suficiente histórico para una lectura técnica");
         }
 
         List<PriceHistoryPoint> tail = points.subList(points.size() - LONG_WINDOW, points.size());
@@ -245,14 +288,14 @@ public class MarketDataService {
 
         if (sma5 > sma20 * 1.01) {
             return new TechnicalSignal(RecommendationSignal.BUY,
-                    "5-day average is above the 20-day average (short-term uptrend)");
+                    "La media de 5 días está por encima de la de 20 días (tendencia alcista de corto plazo)");
         }
         if (sma5 < sma20 * 0.99) {
             return new TechnicalSignal(RecommendationSignal.WAIT,
-                    "5-day average is below the 20-day average (short-term downtrend)");
+                    "La media de 5 días está por debajo de la de 20 días (tendencia bajista de corto plazo)");
         }
         return new TechnicalSignal(RecommendationSignal.HOLD,
-                "Price is consolidating close to its 20-day average");
+                "El precio consolida cerca de su media de 20 días");
     }
 
     private double average(List<PriceHistoryPoint> points) {
@@ -287,5 +330,8 @@ public class MarketDataService {
     }
 
     private record TechnicalSignal(RecommendationSignal signal, String reason) {
+    }
+
+    private record CachedChart(JsonNode chart, long fetchedAtMs) {
     }
 }

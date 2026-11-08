@@ -1,5 +1,4 @@
-// apiBaseUrl is a placeholder — replace with the real Render backend URL
-// once the service is deployed (see README "Demo en vivo" section).
+// URL pública del backend en Render. La demo del login funciona aunque esté apagado.
 export const environment = {
   production: true,
   apiBaseUrl: 'https://cesarx-analytics-backend.onrender.com',

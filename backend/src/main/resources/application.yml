@@ -10,6 +10,9 @@ spring:
     username: ${DB_USER:cesarx}
     password: ${DB_PASSWORD:cesarx}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      schema: ${DB_SCHEMA:public}
+      maximum-pool-size: ${DB_POOL_SIZE:3}
 
   jpa:
     hibernate:
@@ -20,19 +23,23 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: ${DB_SCHEMA:public}
 
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    default-schema: ${DB_SCHEMA:public}
+    schemas: ${DB_SCHEMA:public}
 
 app:
   jwt:
-    secret: ${JWT_SECRET:change-this-super-secret-key-before-deploying-to-production-min-32-bytes}
+    # Sin JWT_SECRET se genera una clave aleatoria al arrancar (las sesiones no sobreviven a un reinicio).
+    secret: ${JWT_SECRET:}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24h
 
   market-data:
     yahoo-finance-base-url: https://query1.finance.yahoo.com
+    cache-ttl-ms: ${MARKET_CACHE_TTL_MS:30000}
 
   # Base URL of the Python AI microservice (wired up in Phase 2)
   ai-service:
@@ -42,7 +49,7 @@ app:
     check-interval-ms: ${ALERTS_CHECK_INTERVAL_MS:300000} # 5 min
 
   cors:
-    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:4200}
+    allowed-origins: ${ALLOWED_ORIGINS:https://cesarespa.github.io,http://localhost:4200}
 
 springdoc:
   swagger-ui:

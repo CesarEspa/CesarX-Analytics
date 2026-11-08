@@ -42,7 +42,7 @@ public class AiService {
             throw new AiServiceException(detail);
         } catch (WebClientRequestException e) {
             throw new AiServiceException(
-                    "El microservicio de IA no está disponible. Arranca ai-service en el puerto 8000.", e);
+                    "El servicio de IA no está disponible en este momento. Intenta de nuevo en un minuto.", e);
         }
     }
 

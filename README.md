@@ -8,10 +8,12 @@ Proyecto de doble propósito:
 
 ## 🔗 Demo en vivo
 
-- Frontend: https://cesarespa.github.io/CesarX-Analytics/
-- API (Swagger): https://cesarx-analytics-backend.onrender.com/swagger-ui.html
+- **App:** https://cesarespa.github.io/CesarX-Analytics/ → botón **Probar la demo sin registrarme**
+- **API (Swagger):** https://cesarx-analytics-backend.onrender.com/swagger-ui/index.html
 
-> El backend corre en el plan gratuito de Render y se duerme tras 15 min sin tráfico — la primera petición tras inactividad puede tardar hasta ~50s en responder (la UI muestra un aviso de "despertando el servidor" mientras tanto).
+La demo no necesita cuenta ni servidor: `frontend/src/app/core/demo-api.ts` responde los mismos contratos que el backend, con **precios, noticias y predicciones simulados** y marcados como tales en pantalla. Crear una cuenta usa la API real con datos de Yahoo Finance.
+
+> El backend corre en el plan gratuito de Render y se duerme tras 15 min sin tráfico. La pantalla de ingreso lo despierta en segundo plano y muestra su estado.
 
 ## Arquitectura
 
@@ -210,12 +212,32 @@ La predicción funciona sin API keys. El análisis de noticias requiere:
 
 El frontend refresca todas las cotizaciones cada 20 segundos vía `GET /api/market/quotes` (una llamada batch ligera por tick). El header muestra un indicador verde con la hora de la última actualización.
 
-## Flujo de Git sugerido
+## ✅ Pruebas
 
-- `main` — versión estable y desplegable
-- `develop` — integración de features antes de pasar a `main`
-- `feature/<nombre>` — una rama por funcionalidad (p. ej. `feature/news-sentiment-service`)
+| Módulo | Qué cubren | Comando |
+|---|---|---|
+| Backend (36, JUnit 5 + MockMvc) | Señal SMA5/SMA20, variación diaria, caché y fallos de Yahoo, JWT (expirado, alterado, otra clave, secreto ausente), 401 en rutas protegidas, CORS, alertas, totales del portfolio, registro | `cd backend && ./mvnw test` |
+| IA (10, pytest) | Sin fuga de datos futuros en las variables, RSI acotado, umbrales de dirección, historial insuficiente | `cd ai-service && python -m pytest` |
 
-## Próximos pasos
+GitHub Actions ejecuta ambas suites y compila el frontend en cada push (`.github/workflows/ci.yml`).
 
-Fase 2: microservicio Python (FastAPI) que consuma NewsAPI y clasifique el sentimiento de cada noticia por ETF usando la API de Claude, expuesto vía HTTP para que el backend Java lo consuma.
+## 🚀 Despliegue
+
+| Pieza | Servicio | Configuración |
+|---|---|---|
+| Frontend | GitHub Pages | `.github/workflows/deploy-frontend.yml`. En el repo: *Settings → Pages → Source: GitHub Actions* |
+| Backend e IA | Render (Docker) | `render.yaml` define los dos servicios |
+| Base de datos | PostgreSQL (Supabase, *Session pooler*) | Flyway crea las tablas en el esquema `DB_SCHEMA`, así que se puede compartir la base con otro proyecto |
+
+Variables del backend: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_SSLMODE=require`, `DB_SCHEMA`, `JWT_SECRET`, `AI_SERVICE_URL`, `ALLOWED_ORIGINS`. Ver [`backend/.env.example`](backend/.env.example).
+
+El microservicio de IA predice sin claves. Para noticias añade `NEWS_API_KEY` y, para clasificar su sentimiento, `ANTHROPIC_API_KEY`.
+
+## Decisiones técnicas
+
+- **Caché de 30 s por consulta a Yahoo:** el refresco de todos los usuarios comparte las mismas llamadas para no provocar errores 429; si Yahoo falla se sirve el último dato conocido, hasta una hora.
+- **Sin claves por defecto:** sin `JWT_SECRET`, o con el valor de ejemplo, se firma con una clave aleatoria en memoria.
+- **Límite de peticiones por IP** en registro y en los endpoints de IA, que consumen cuotas externas.
+- **JVM ajustada a 512 MB** para el plan gratuito de Render.
+
+> Proyecto educativo. Las señales y predicciones son modelos estadísticos simples y no constituyen asesoría financiera.

@@ -175,7 +175,7 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
     }
     .chart-head h2 { font-size: 19px; }
     .signal-reason { font-size: 13px; }
-    .ranges { display: flex; gap: 6px; }
+    .ranges { display: flex; flex-wrap: wrap; gap: 6px; }
     .chart-loading { height: 380px; display: flex; align-items: center; justify-content: center; }
     .panels { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
     .ai-panels { grid-template-columns: 2fr 3fr; }
@@ -189,7 +189,7 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
       50% { opacity: 0.3; }
     }
     @media (max-width: 960px) {
-      .panels, .ai-panels { grid-template-columns: 1fr; }
+      .panels, .ai-panels { grid-template-columns: minmax(0, 1fr); }
     }
   `],
 })
@@ -374,7 +374,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.loadHistory();
         this.loadAiAnalysis();
       },
-      error: () => this.error.set('No se pudo cargar el catálogo de ETFs. ¿Está corriendo el backend en el puerto 8080?'),
+      error: () => this.error.set('No se pudo cargar el catálogo de ETFs. Intenta de nuevo en un momento.'),
     });
   }
 

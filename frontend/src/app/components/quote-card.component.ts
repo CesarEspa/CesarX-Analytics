@@ -9,7 +9,7 @@ import { PriceQuote } from '../core/models';
   template: `
     <div class="card quote-card" [class.selected]="selected" (click)="select.emit(symbol)">
       <div class="head">
-        <div>
+        <div class="identity">
           <div class="symbol">{{ symbol }}</div>
           <div class="name muted">{{ name }}</div>
         </div>
@@ -43,8 +43,10 @@ import { PriceQuote } from '../core/models';
     .quote-card:hover { border-color: var(--accent); }
     .quote-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .identity { min-width: 0; }
+    .head .badge { flex: none; }
     .symbol { font-size: 18px; font-weight: 700; }
-    .name { font-size: 12.5px; max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .price-row { display: flex; align-items: baseline; gap: 6px; margin-top: 12px; }
     .price { font-size: 26px; font-weight: 700; }
     .currency { font-size: 13px; }

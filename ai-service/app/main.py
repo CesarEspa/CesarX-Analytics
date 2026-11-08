@@ -89,8 +89,8 @@ def _build_news_response(symbol: str) -> dict:
             "symbol": symbol.upper(),
             "overall_sentiment": "neutral",
             "outlook": (
-                "Análisis de sentimiento no disponible (configura ANTHROPIC_API_KEY en ai-service/.env). "
-                "Mostrando titulares sin clasificar."
+                "El análisis de sentimiento no está disponible en este momento. "
+                "Se muestran los titulares sin clasificar."
             ),
             "articles": [{**a, "sentiment": "neutral", "reason": ""} for a in articles],
         }

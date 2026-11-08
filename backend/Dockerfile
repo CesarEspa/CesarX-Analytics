@@ -14,4 +14,5 @@ WORKDIR /app
 
 COPY --from=build /app/target/analytics-backend.jar app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Ajustado a los 512 MB del plan gratis de Render
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-Xss512k", "-jar", "app.jar"]
