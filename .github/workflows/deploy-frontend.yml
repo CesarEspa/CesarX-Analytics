@@ -1,5 +1,7 @@
 name: Deploy frontend to GitHub Pages
 
+# Requiere en el repo: Settings > Pages > Source: GitHub Actions.
+
 on:
   push:
     branches: [main]
