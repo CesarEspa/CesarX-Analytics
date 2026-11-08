@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from app import prediction
+from app.cache import TTLCache
 
 
 class FakeTicker:
@@ -37,21 +38,7 @@ def series(days, seed=7, drift=0.0005, vol=0.01):
 
 def use_history(monkeypatch, closes):
     monkeypatch.setattr(prediction.yf, "Ticker", lambda _: FakeTicker(closes))
-
-
-class FixedReturnModel:
-    """Stands in for Ridge so the direction thresholds can be tested exactly."""
-
-    predicted = 0.0
-
-    def __init__(self, **_):
-        pass
-
-    def fit(self, X, y):
-        return self
-
-    def predict(self, X):
-        return np.full(len(X), type(self).predicted)
+    monkeypatch.setattr(prediction, "_macro_cache", TTLCache(ttl_seconds=0))
 
 
 def test_features_do_not_use_future_prices():
@@ -91,12 +78,85 @@ def test_prediction_has_consistent_values(monkeypatch):
     "predicted_return,direction",
     [(0.05, "UP"), (0.021, "UP"), (0.02, "SIDEWAYS"), (-0.02, "SIDEWAYS"), (-0.021, "DOWN")],
 )
-def test_direction_thresholds(monkeypatch, predicted_return, direction):
-    use_history(monkeypatch, series(1200))
-    FixedReturnModel.predicted = predicted_return
-    monkeypatch.setattr(prediction, "Ridge", FixedReturnModel)
+def test_direction_thresholds(predicted_return, direction):
+    assert prediction.direction_for(predicted_return) == direction
 
-    assert prediction.predict_trend("QQQ")["direction"] == direction
+
+class RecordingModel:
+    train_sizes = []
+
+    def fit(self, X, y):
+        type(self).train_sizes.append(len(X))
+        return self
+
+    def predict(self, X):
+        return np.zeros(len(X))
+
+
+def test_walk_forward_leaves_a_purge_gap_before_each_test_block():
+    RecordingModel.train_sizes = []
+    rows = 1000
+    X = pd.DataFrame({"x": np.arange(rows, dtype=float)})
+    y = pd.Series(np.zeros(rows))
+
+    prediction._walk_forward(X, y, {"m": RecordingModel}, horizon=21)
+
+    starts = prediction._fold_edges(rows)[:-1]
+    assert RecordingModel.train_sizes == [int(start) - 21 for start in starts]
+
+
+def test_noise_is_not_reported_as_reliable_skill():
+    rng = np.random.default_rng(1)
+    actual = rng.normal(0, 0.05, 600)
+    predicted = rng.normal(0, 0.05, 600)
+
+    assert not prediction._beats_benchmark_reliably(actual, predicted, np.zeros(600))
+
+
+def test_real_skill_is_detected():
+    rng = np.random.default_rng(2)
+    actual = rng.normal(0, 0.05, 600)
+    predicted = actual + rng.normal(0, 0.005, 600)
+
+    assert prediction._beats_benchmark_reliably(actual, predicted, np.zeros(600))
+
+
+def test_random_walk_never_gets_more_than_low_confidence(monkeypatch):
+    use_history(monkeypatch, series(1500, seed=11))
+
+    assert prediction.predict_trend("QQQ")["confidence"] == "LOW"
+
+
+def test_forecast_path_and_interval_are_coherent(monkeypatch):
+    use_history(monkeypatch, series(1200))
+
+    result = prediction.predict_trend("QQQ")
+    path = result["forecast_path"]
+
+    assert len(path) == prediction.HORIZON_TRADING_DAYS
+    assert all(a["timestamp"] < b["timestamp"] for a, b in zip(path, path[1:]))
+    assert all(p["low"] <= p["expected"] <= p["high"] for p in path)
+    assert path[-1]["expected"] == pytest.approx(result["predicted_price"], abs=0.02)
+    assert result["interval"]["low_price"] <= result["predicted_price"] <= result["interval"]["high_price"]
+    assert 0 <= result["prob_up_pct"] <= 100
+    assert sum(c["selected"] for c in result["candidates"]) == 1
+
+
+def test_history_description_of_a_steady_rise():
+    closes = pd.Series(100 * 1.001 ** np.arange(400), index=pd.bdate_range("2023-01-02", periods=400))
+
+    result = prediction.describe_history(closes)
+
+    assert result["trend"] == "bullish"
+    assert result["return_1m_pct"] == pytest.approx((1.001**21 - 1) * 100, abs=0.01)
+    assert result["drawdown_pct"] == 0
+    assert "alcista" in result["summary"]
+
+
+def test_history_description_of_a_steady_fall():
+    closes = pd.Series(100 * 0.999 ** np.arange(400), index=pd.bdate_range("2023-01-02", periods=400))
+
+    assert prediction.describe_history(closes)["trend"] == "bearish"
 
 
 def test_short_history_is_rejected(monkeypatch):

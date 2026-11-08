@@ -8,6 +8,7 @@ Endpoints:
 
 from fastapi import FastAPI, HTTPException
 
+from . import lexicon
 from .cache import TTLCache
 from .config import settings
 from .news import NewsError, fetch_news
@@ -77,22 +78,21 @@ def _build_news_response(symbol: str) -> dict:
             "symbol": symbol.upper(),
             "overall_sentiment": "neutral",
             "outlook": "No se encontraron noticias recientes para este ETF.",
+            "analysis_method": "none",
             "articles": [],
         }
 
     try:
         analysis = analyze_sentiment(symbol, articles)
     except SentimentError:
-        # Degrade gracefully: show headlines even when Claude isn't configured
-        # or the API call fails — sentiment just comes back neutral.
+        # Without Claude the panel still works, with a transparent keyword count.
+        overall, outlook, tones = lexicon.analyze(articles)
         return {
             "symbol": symbol.upper(),
-            "overall_sentiment": "neutral",
-            "outlook": (
-                "El análisis de sentimiento no está disponible en este momento. "
-                "Se muestran los titulares sin clasificar."
-            ),
-            "articles": [{**a, "sentiment": "neutral", "reason": ""} for a in articles],
+            "overall_sentiment": overall,
+            "outlook": outlook,
+            "analysis_method": "keywords",
+            "articles": [{**a, "sentiment": tone, "reason": ""} for a, tone in zip(articles, tones)],
         }
 
     sentiment_by_index = {a.index: a for a in analysis.articles}
@@ -111,6 +111,7 @@ def _build_news_response(symbol: str) -> dict:
         "symbol": symbol.upper(),
         "overall_sentiment": analysis.overall_sentiment,
         "outlook": analysis.outlook,
+        "analysis_method": "claude",
         "articles": enriched,
     }
 

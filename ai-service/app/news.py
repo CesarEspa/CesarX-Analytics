@@ -1,12 +1,14 @@
-"""Fetches recent news per ETF from NewsAPI."""
+"""Recent news per ETF: NewsAPI when a key is configured, Yahoo Finance otherwise."""
 
 from datetime import datetime, timedelta, timezone
 
 import httpx
+import yfinance as yf
 
 from .config import settings
 
 NEWS_API_URL = "https://newsapi.org/v2/everything"
+MAX_AGE_DAYS = 14
 
 # Search terms per tracked symbol — tuned so headlines are actually about
 # what moves each fund.
@@ -29,9 +31,27 @@ class NewsError(Exception):
 
 
 def fetch_news(symbol: str, page_size: int = 8) -> list[dict]:
-    if not settings.news_api_key:
-        raise NewsError("NEWS_API_KEY is not configured")
+    if settings.news_api_key:
+        try:
+            return _unique_titles(_fetch_newsapi(symbol, page_size * 2))[:page_size]
+        except (NewsError, httpx.HTTPError):
+            pass  # a quota or network problem should not leave the panel empty
+    return _unique_titles(_fetch_yahoo(symbol, page_size * 2))[:page_size]
 
+
+def _unique_titles(articles: list[dict]) -> list[dict]:
+    """The same wire story is often republished by several outlets."""
+    seen: set[str] = set()
+    unique = []
+    for article in articles:
+        key = article["title"].rsplit(" - ", 1)[0].strip().lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(article)
+    return unique
+
+
+def _fetch_newsapi(symbol: str, page_size: int) -> list[dict]:
     query = QUERY_MAP.get(symbol.upper(), symbol.upper())
     since = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
@@ -63,3 +83,35 @@ def fetch_news(symbol: str, page_size: int = 8) -> list[dict]:
         for a in articles
         if a.get("title") and a.get("title") != "[Removed]"
     ]
+
+
+def _fetch_yahoo(symbol: str, limit: int) -> list[dict]:
+    try:
+        items = yf.Ticker(symbol).news or []
+    except Exception as e:
+        raise NewsError("No se pudieron obtener las noticias en este momento.") from e
+
+    oldest = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
+    articles: list[dict] = []
+    for item in items:
+        content = item.get("content") or {}
+        title = content.get("title")
+        published = content.get("pubDate") or ""
+        link = (content.get("canonicalUrl") or {}).get("url") or (content.get("clickThroughUrl") or {}).get("url")
+        if not title or not link or not published:
+            continue
+        try:
+            if datetime.fromisoformat(published.replace("Z", "+00:00")) < oldest:
+                continue
+        except ValueError:
+            continue
+        articles.append(
+            {
+                "title": title,
+                "description": content.get("summary") or "",
+                "source": (content.get("provider") or {}).get("displayName") or "Yahoo Finance",
+                "url": link,
+                "published_at": published,
+            }
+        )
+    return articles[:limit]

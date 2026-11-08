@@ -31,6 +31,11 @@ services:
         value: https://cesarx-analytics-ai.onrender.com
       - key: ALLOWED_ORIGINS
         value: https://cesarespa.github.io
+      # Correo de recuperación de contraseña (API HTTPS de Brevo).
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
 
   - type: web
     name: cesarx-analytics-ai
