@@ -195,12 +195,22 @@ Requiere el backend corriendo (`cd backend && ./mvnw spring-boot:run`) y Postgre
 5. **Incertidumbre**: intervalo conformal del 80% calibrado con errores fuera de muestra y comprobado en los bloques finales.
 6. **Noticias aparte**: no entran al modelo porque no hay historial de titulares con el que validarlas.
 
-Resultado medido el 8 de noviembre de 2026 en los 10 activos: 4 superaron a la media histórica (R² entre 0,008 y 0,056) y ninguno con ventaja estadísticamente significativa. La cobertura real del intervalo estuvo entre 58% y 94%. Es lo esperable a un mes vista: la app expone esa incertidumbre en lugar de ocultarla.
+**Horizonte de una semana.** Se midieron 3, 5, 10, 15 y 21 sesiones en los 10 activos (mediana, 8 de noviembre de 2026). Se eligieron 5 sesiones: es el plazo útil con menos margen.
+
+| Sesiones | Ancho del rango 80% | Error típico | Modelos que superan la media | Con ventaja fiable |
+|---|---|---|---|---|
+| 3 | 5,1 puntos | 1,62% | 3 de 10 | 0 |
+| **5** | **6,6 puntos** | **2,10%** | **1 de 10** | **0** |
+| 10 | 9,4 puntos | 2,88% | 1 de 10 | 0 |
+| 15 | 11,9 puntos | 3,55% | 4 de 10 | 0 |
+| 21 | 13,9 puntos | 4,32% | 4 de 10 | 0 |
+
+Acortar el plazo reduce el margen porque el precio tiene menos tiempo para moverse, no porque el modelo acierte más: en ningún horizonte hubo ventaja estadísticamente fiable. La app expone esa incertidumbre en lugar de ocultarla.
 
 ### Endpoints
 
 - `GET /health` — estado del servicio y qué API keys están configuradas
-- `GET /predict/{symbol}` — proyección a ~30 días con rango, comparación de modelos, lectura del historial y trayectoria para la gráfica
+- `GET /predict/{symbol}` — proyección a 1 semana con rango, comparación de modelos, lectura del historial y trayectoria para la gráfica
 - `GET /news/{symbol}` — noticias de los últimos 7 días con sentimiento por artículo (positivo/negativo/neutral) + outlook general
 
 El backend Java los expone vía proxy en `/api/ai/predict/{symbol}` y `/api/ai/news/{symbol}` (protegidos con JWT).

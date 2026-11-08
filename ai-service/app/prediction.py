@@ -1,4 +1,4 @@
-"""One-month ETF return forecast, validated the way a time series must be.
+"""One-week ETF return forecast, validated the way a time series must be.
 
 Pipeline: ~10 years of daily data -> leakage-free features (price, volume,
 volatility, VIX, 10Y yields) -> purged walk-forward validation of several
@@ -6,7 +6,7 @@ models against a historical-mean benchmark -> model chosen on the earlier
 folds, scored on later folds it never saw -> conformal interval from
 out-of-sample errors.
 
-Monthly returns are close to unpredictable, so a model is only used when it
+Short-term returns are close to unpredictable, so a model is only used when it
 beats the benchmark on the untouched folds. Otherwise the forecast falls back
 to the historical mean and the response says so.
 """
@@ -25,7 +25,8 @@ from sklearn.preprocessing import StandardScaler
 
 from .cache import TTLCache
 
-HORIZON_TRADING_DAYS = 21  # ~1 calendar month
+HORIZON_TRADING_DAYS = 5  # one week: less than half the margin of a one-month forecast
+DIRECTION_THRESHOLD = 0.01
 HISTORY_PERIOD = "10y"
 MIN_SAMPLES = 500
 WALK_FORWARD_FOLDS = 5
@@ -194,9 +195,9 @@ def confidence_label(r2: float) -> str:
 
 
 def direction_for(predicted_return: float) -> str:
-    if predicted_return > 0.02:
+    if predicted_return > DIRECTION_THRESHOLD:
         return "UP"
-    if predicted_return < -0.02:
+    if predicted_return < -DIRECTION_THRESHOLD:
         return "DOWN"
     return "SIDEWAYS"
 
@@ -342,7 +343,7 @@ def predict_trend(symbol: str) -> dict:
     y = data["target"]
 
     builders = _model_builders()
-    predictions = _with_ensemble(_walk_forward(X, y, builders))
+    predictions = _with_ensemble(_walk_forward(X, y, builders, HORIZON_TRADING_DAYS))
     edges = _fold_edges(len(X))
     selection = np.arange(edges[0], edges[SELECTION_FOLDS] - HORIZON_TRADING_DAYS)
     holdout = np.arange(edges[SELECTION_FOLDS], len(X))
@@ -359,7 +360,7 @@ def predict_trend(symbol: str) -> dict:
     benchmark = predictions[BASELINE][holdout]
     best_holdout = predictions[best][holdout]
     r2 = _r2_against(actual[holdout], best_holdout, benchmark)
-    reliable = _beats_benchmark_reliably(actual[holdout], best_holdout, benchmark)
+    reliable = _beats_benchmark_reliably(actual[holdout], best_holdout, benchmark, HORIZON_TRADING_DAYS)
     used = best if r2 > 0 else BASELINE
 
     # Interval calibrated on earlier errors, then checked against the holdout.
@@ -388,7 +389,7 @@ def predict_trend(symbol: str) -> dict:
 
     return {
         "symbol": symbol.upper(),
-        "horizon_days": 30,
+        "horizon_days": 7,
         "current_price": round(current_price, 2),
         "predicted_price": round(current_price * (1 + predicted_return), 2),
         "predicted_return_pct": round(predicted_return * 100, 2),

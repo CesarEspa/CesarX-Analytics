@@ -70,13 +70,13 @@ def test_prediction_has_consistent_values(monkeypatch):
     assert result["current_price"] == pytest.approx(closes.iloc[-1], abs=0.01)
     expected = result["current_price"] * (1 + result["predicted_return_pct"] / 100)
     assert result["predicted_price"] == pytest.approx(expected, rel=1e-3)
-    # The last 21 sessions have no known forward return, so they can't be training rows.
+    # The last sessions have no known forward return, so they can't be training rows.
     assert result["trained_samples"] <= len(closes) - prediction.HORIZON_TRADING_DAYS
 
 
 @pytest.mark.parametrize(
     "predicted_return,direction",
-    [(0.05, "UP"), (0.021, "UP"), (0.02, "SIDEWAYS"), (-0.02, "SIDEWAYS"), (-0.021, "DOWN")],
+    [(0.05, "UP"), (0.011, "UP"), (0.01, "SIDEWAYS"), (-0.01, "SIDEWAYS"), (-0.011, "DOWN")],
 )
 def test_direction_thresholds(predicted_return, direction):
     assert prediction.direction_for(predicted_return) == direction
