@@ -118,7 +118,7 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
         <div class="card chart-card">
           <div class="chart-head">
             <div class="legend">
-              <span><i class="candle"></i> Precio real</span>
+              <span><i class="candle"></i> Precio</span>
               @if (!selectedRange().intraday) {
                 <span><i class="ma20"></i> Media 20</span>
                 <span><i class="ma50"></i> Media 50</span>

@@ -86,7 +86,8 @@ export class ForecastBand implements ISeriesPrimitive<Time> {
       context.fillStyle = '#e32b3c';
       context.font = "700 10px Manrope, sans-serif";
       context.textAlign = 'right';
-      context.fillText('HOY  ·  PROYECCIÓN →', first.x! - 6, mediaSize.height - 8);
+      // Sits in the free strip between the candles and the volume bars.
+      context.fillText('HOY  ·  PROYECCIÓN →', first.x! - 6, mediaSize.height * 0.835);
     });
   }
 }
