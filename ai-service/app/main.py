@@ -2,7 +2,7 @@
 
 Endpoints:
   GET /health              -> service status + which API keys are configured
-  GET /predict/{symbol}    -> 1-month trend prediction (scikit-learn)
+  GET /predict/{symbol}?horizon=1w|15d|1m|6m|1y -> validated forecast + explanation
   GET /news/{symbol}       -> recent news + Claude sentiment analysis + outlook
 """
 
@@ -12,7 +12,8 @@ from . import lexicon
 from .cache import TTLCache
 from .config import settings
 from .news import NewsError, fetch_news
-from .prediction import PredictionError, predict_trend
+from .explanation import explain
+from .prediction import DEFAULT_HORIZON, HORIZONS, PredictionError, predict_trend
 from .sentiment import SentimentError, analyze_sentiment
 
 app = FastAPI(
@@ -38,21 +39,30 @@ def health() -> dict:
 
 
 @app.get("/predict/{symbol}")
-def predict(symbol: str) -> dict:
-    key = symbol.upper()
-    cached = predict_cache.get(key)
-    if cached is not None:
-        return cached
+def predict(symbol: str, horizon: str = DEFAULT_HORIZON) -> dict:
+    if horizon not in HORIZONS:
+        raise HTTPException(status_code=422, detail=f"Plazo no válido: {horizon}")
 
+    key = f"{symbol.upper()}:{horizon}"
+    result = predict_cache.get(key)
+    if result is None:
+        try:
+            result = predict_trend(symbol, horizon)
+        except PredictionError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except Exception as e:  # yfinance/network hiccups
+            raise HTTPException(status_code=502, detail=f"Prediction failed for {symbol}: {e}") from e
+        predict_cache.set(key, result)
+
+    return {**result, "explanation": explain(result, _news_or_none(symbol))}
+
+
+def _news_or_none(symbol: str) -> dict | None:
+    """News enriches the explanation; a forecast must not fail because of it."""
     try:
-        result = predict_trend(symbol)
-    except PredictionError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
-    except Exception as e:  # yfinance/network hiccups
-        raise HTTPException(status_code=502, detail=f"Prediction failed for {symbol}: {e}") from e
-
-    predict_cache.set(key, result)
-    return result
+        return news(symbol)
+    except Exception:
+        return None
 
 
 @app.get("/news/{symbol}")

@@ -207,10 +207,12 @@ Requiere el backend corriendo (`cd backend && ./mvnw spring-boot:run`) y Postgre
 
 Acortar el plazo reduce el margen porque el precio tiene menos tiempo para moverse, no porque el modelo acierte más: en ningún horizonte hubo ventaja estadísticamente fiable. La app expone esa incertidumbre en lugar de ocultarla.
 
+**Plazos disponibles.** El usuario elige 1 semana, 15 días, 1 mes, 6 meses o 1 año. Hasta 1 mes se ejecuta la validación completa. A 6 meses y 1 año, 10 años de datos dejan 3 y 1 periodos sin solapar: no alcanza para validar un modelo, así que la cifra es el promedio histórico, el rango resume todas las ventanas de ese plazo y la app lo declara. Cada proyección incluye una explicación generada con sus propias cifras: modelo, historial, situaciones parecidas, gráfica, riesgo y noticias.
+
 ### Endpoints
 
 - `GET /health` — estado del servicio y qué API keys están configuradas
-- `GET /predict/{symbol}` — proyección a 1 semana con rango, comparación de modelos, lectura del historial y trayectoria para la gráfica
+- `GET /predict/{symbol}?horizon=1w|15d|1m|6m|1y` — proyección con rango, comparación de modelos, lectura del historial, trayectoria para la gráfica y explicación
 - `GET /news/{symbol}` — noticias de los últimos 7 días con sentimiento por artículo (positivo/negativo/neutral) + outlook general
 
 El backend Java los expone vía proxy en `/api/ai/predict/{symbol}` y `/api/ai/news/{symbol}` (protegidos con JWT).

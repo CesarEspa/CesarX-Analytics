@@ -1,4 +1,4 @@
-"""One-week ETF return forecast, validated the way a time series must be.
+"""ETF return forecast for a chosen horizon, validated the way a time series must be.
 
 Pipeline: ~10 years of daily data -> leakage-free features (price, volume,
 volatility, VIX, 10Y yields) -> purged walk-forward validation of several
@@ -8,11 +8,13 @@ out-of-sample errors.
 
 Short-term returns are close to unpredictable, so a model is only used when it
 beats the benchmark on the untouched folds. Otherwise the forecast falls back
-to the historical mean and the response says so.
+to the historical mean and the response says so. Long horizons leave too few
+independent periods to validate any model, so they always use that mean.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import ceil
+from math import ceil, sqrt
 
 import numpy as np
 import pandas as pd
@@ -35,6 +37,27 @@ INTERVAL_LEVEL = 80
 BASELINE = "Media histórica"
 ENSEMBLE = "Ensamble"
 SEED = 42
+MIN_INDEPENDENT_PERIODS = 12  # fewer non-overlapping test periods cannot validate a model
+MIN_CALIBRATION_ROWS = 30
+MIN_ANALOGS = 60
+
+
+@dataclass(frozen=True)
+class Horizon:
+    key: str
+    sessions: int
+    calendar_days: int
+    label: str
+
+
+HORIZONS = {
+    "1w": Horizon("1w", HORIZON_TRADING_DAYS, 7, "1 semana"),
+    "15d": Horizon("15d", 10, 15, "15 días"),
+    "1m": Horizon("1m", 21, 30, "1 mes"),
+    "6m": Horizon("6m", 126, 182, "6 meses"),
+    "1y": Horizon("1y", 252, 365, "1 año"),
+}
+DEFAULT_HORIZON = "1w"
 
 MACRO_SYMBOLS = {"vix": "^VIX", "tnx": "^TNX"}
 _macro_cache = TTLCache(ttl_seconds=6 * 3600)
@@ -194,10 +217,12 @@ def confidence_label(r2: float) -> str:
     return "LOW"
 
 
-def direction_for(predicted_return: float) -> str:
-    if predicted_return > DIRECTION_THRESHOLD:
+def direction_for(predicted_return: float, sessions: int = HORIZON_TRADING_DAYS) -> str:
+    """A move counts as a trend only if it is large for its horizon (noise grows with sqrt of time)."""
+    threshold = DIRECTION_THRESHOLD * sqrt(sessions / HORIZON_TRADING_DAYS)
+    if predicted_return > threshold:
         return "UP"
-    if predicted_return < -DIRECTION_THRESHOLD:
+    if predicted_return < -threshold:
         return "DOWN"
     return "SIDEWAYS"
 
@@ -225,6 +250,51 @@ def _top_factors(model, X: pd.DataFrame, y: pd.Series, limit: int = 3) -> list[d
         for name, score in ranked
         if score > 0
     ]
+
+
+def _drivers(model, X: pd.DataFrame, today: pd.DataFrame, limit: int = 3) -> list[dict]:
+    """How much today's forecast changes if each feature were at its usual level."""
+    forecast = float(model.predict(today)[0])
+    impacts = {}
+    for column in X.columns:
+        usual = today.copy()
+        usual[column] = float(X[column].median())
+        impacts[column] = forecast - float(model.predict(usual)[0])
+    ranked = sorted(impacts.items(), key=lambda item: abs(item[1]), reverse=True)[:limit]
+    return [
+        {
+            "feature": name,
+            "label": FACTOR_LABELS.get(name, name),
+            "impact_pct": round(impact * 100, 2),
+            "effect": "up" if impact > 0 else "down",
+        }
+        for name, impact in ranked
+        if abs(impact) >= 0.0005
+    ]
+
+
+def _return_stats(log_returns: pd.Series) -> dict:
+    simple = np.expm1(log_returns.to_numpy()) * 100
+    return {
+        "windows": int(len(simple)),
+        "pct_up": round(float(np.mean(simple > 0)) * 100, 1),
+        "median_return_pct": round(float(np.median(simple)), 2),
+        "p10_return_pct": round(float(np.quantile(simple, 0.10)), 2),
+        "p90_return_pct": round(float(np.quantile(simple, 0.90)), 2),
+    }
+
+
+def _analogs(X: pd.DataFrame, y: pd.Series, today: pd.DataFrame) -> dict | None:
+    """What followed past sessions in the same regime: same side of the 200-day mean, same volatility third."""
+    above = float(today["dist_sma200"].iloc[0]) > 0
+    cuts = X["volatility_21"].quantile([1 / 3, 2 / 3]).to_numpy()
+    third = int(np.digitize(float(today["volatility_21"].iloc[0]), cuts))
+    same = ((X["dist_sma200"] > 0) == above) & (np.digitize(X["volatility_21"].to_numpy(), cuts) == third)
+    if int(same.sum()) < MIN_ANALOGS:
+        return None
+    side = "sobre" if above else "bajo"
+    level = ("baja", "media", "alta")[third]
+    return {**_return_stats(y[same]), "description": f"{side} su media de 200 días y con volatilidad {level}"}
 
 
 def describe_history(closes: pd.Series) -> dict:
@@ -286,12 +356,14 @@ def describe_history(closes: pd.Series) -> dict:
     }
 
 
-def _forecast_path(last_date: pd.Timestamp, price: float, log_return: float, low: float, high: float) -> list[dict]:
+def _forecast_path(
+    last_date: pd.Timestamp, price: float, log_return: float, low: float, high: float, sessions: int = HORIZON_TRADING_DAYS
+) -> list[dict]:
     """Daily path to the horizon: drift grows linearly, uncertainty with the square root of time."""
-    dates = pd.bdate_range(last_date + pd.Timedelta(days=1), periods=HORIZON_TRADING_DAYS)
+    dates = pd.bdate_range(last_date + pd.Timedelta(days=1), periods=sessions)
     path = []
     for step, date in enumerate(dates, start=1):
-        fraction = step / HORIZON_TRADING_DAYS
+        fraction = step / sessions
         root = np.sqrt(fraction)
         center = log_return * fraction
         path.append(
@@ -321,7 +393,12 @@ def _candidate_report(actual: np.ndarray, predictions: dict, benchmark: np.ndarr
     return report
 
 
-def predict_trend(symbol: str) -> dict:
+def predict_trend(symbol: str, horizon: str = DEFAULT_HORIZON) -> dict:
+    if horizon not in HORIZONS:
+        raise PredictionError(f"Unknown horizon: {horizon}")
+    plan = HORIZONS[horizon]
+    sessions = plan.sessions
+
     history = yf.Ticker(symbol).history(period=HISTORY_PERIOD, interval="1d", auto_adjust=True)
     if history.empty or "Close" not in history:
         raise PredictionError(f"No price history available for {symbol}")
@@ -332,7 +409,7 @@ def predict_trend(symbol: str) -> dict:
 
     volume = _normalized(history["Volume"]).reindex(closes.index) if "Volume" in history else None
     features = _add_macro_features(_build_features(closes, volume))
-    target = np.log(closes.shift(-HORIZON_TRADING_DAYS) / closes).rename("target")
+    target = np.log(closes.shift(-sessions) / closes).rename("target")
 
     latest_features = features.iloc[[-1]].dropna()
     data = features.join(target).dropna()
@@ -342,25 +419,33 @@ def predict_trend(symbol: str) -> dict:
     X = data.drop(columns=["target"])
     y = data["target"]
 
-    builders = _model_builders()
-    predictions = _with_ensemble(_walk_forward(X, y, builders, HORIZON_TRADING_DAYS))
     edges = _fold_edges(len(X))
-    selection = np.arange(edges[0], edges[SELECTION_FOLDS] - HORIZON_TRADING_DAYS)
+    selection = np.arange(edges[0], edges[SELECTION_FOLDS] - sessions)
     holdout = np.arange(edges[SELECTION_FOLDS], len(X))
+    if len(selection) < MIN_CALIBRATION_ROWS:
+        raise PredictionError(f"Not enough history for {symbol} at {plan.label}")
+    enough_periods = len(holdout) // sessions >= MIN_INDEPENDENT_PERIODS
     actual = y.to_numpy()
 
-    # Choose on the selection folds; the holdout folds stay untouched for the score.
-    selection_scores = {
-        name: _r2_against(actual[selection], p[selection], predictions[BASELINE][selection])
-        for name, p in predictions.items()
-        if name != BASELINE
-    }
-    best = max(selection_scores, key=selection_scores.get)
+    all_builders = _model_builders()
+    builders = all_builders if enough_periods else {BASELINE: all_builders[BASELINE]}
+    predictions = _walk_forward(X, y, builders, sessions)
+
+    best = BASELINE
+    if enough_periods:
+        # Choose on the selection folds; the holdout folds stay untouched for the score.
+        predictions = _with_ensemble(predictions)
+        selection_scores = {
+            name: _r2_against(actual[selection], p[selection], predictions[BASELINE][selection])
+            for name, p in predictions.items()
+            if name != BASELINE
+        }
+        best = max(selection_scores, key=selection_scores.get)
 
     benchmark = predictions[BASELINE][holdout]
     best_holdout = predictions[best][holdout]
     r2 = _r2_against(actual[holdout], best_holdout, benchmark)
-    reliable = _beats_benchmark_reliably(actual[holdout], best_holdout, benchmark, HORIZON_TRADING_DAYS)
+    reliable = _beats_benchmark_reliably(actual[holdout], best_holdout, benchmark, sessions)
     used = best if r2 > 0 else BASELINE
 
     # Interval calibrated on earlier errors, then checked against the holdout.
@@ -379,21 +464,26 @@ def predict_trend(symbol: str) -> dict:
     else:
         log_return = today_by_model[used]
 
-    residuals = actual[edges[0]:] - used_oos[edges[0]:]
+    # Long horizons have too few test periods to calibrate on, so the range is
+    # simply what this asset did over every window of the full history.
+    residuals = actual[edges[0]:] - used_oos[edges[0]:] if enough_periods else actual - actual.mean()
     final_low, final_high = _interval_quantiles(residuals)
     prob_up = float(np.mean(log_return + residuals > 0)) * 100
 
-    explainer = fit["Gradient Boosting" if best == ENSEMBLE else best]
+    explainer = None if best == BASELINE else fit["Gradient Boosting" if best == ENSEMBLE else best]
     current_price = float(closes.iloc[-1])
     predicted_return = float(np.exp(log_return) - 1)
 
     return {
         "symbol": symbol.upper(),
-        "horizon_days": 7,
+        "horizon": plan.key,
+        "horizon_label": plan.label,
+        "horizon_sessions": sessions,
+        "horizon_days": plan.calendar_days,
         "current_price": round(current_price, 2),
         "predicted_price": round(current_price * (1 + predicted_return), 2),
         "predicted_return_pct": round(predicted_return * 100, 2),
-        "direction": direction_for(predicted_return),
+        "direction": direction_for(predicted_return, sessions),
         "confidence": confidence_label(r2) if reliable else "LOW",
         "model": used,
         "best_candidate": best,
@@ -408,17 +498,21 @@ def predict_trend(symbol: str) -> dict:
             "high_return_pct": round(float(np.exp(log_return + final_high) - 1) * 100, 2),
         },
         "validation": {
-            "method": f"Walk-forward de {WALK_FORWARD_FOLDS} bloques con purga de {HORIZON_TRADING_DAYS} sesiones",
+            "method": f"Walk-forward de {WALK_FORWARD_FOLDS} bloques con purga de {sessions} sesiones",
             "holdout_rows": int(len(holdout)),
-            "independent_periods": int(len(holdout) // HORIZON_TRADING_DAYS),
+            "independent_periods": int(len(holdout) // sessions),
+            "enough_periods": enough_periods,
             "beats_baseline": r2 > 0,
             "reliable": reliable,
-            "interval_coverage_pct": round(coverage * 100, 1),
+            "interval_coverage_pct": round(coverage * 100, 1) if enough_periods else None,
             "baseline_directional_accuracy_pct": round(float(np.mean(actual[holdout] > 0)) * 100, 1),
         },
         "candidates": _candidate_report(actual[holdout], {n: p[holdout] for n, p in predictions.items()}, benchmark, used),
-        "top_factors": _top_factors(explainer, X.iloc[edges[0]:], y.iloc[edges[0]:]),
+        "top_factors": [] if explainer is None else _top_factors(explainer, X.iloc[edges[0]:], y.iloc[edges[0]:]),
+        "drivers": [] if used == BASELINE or explainer is None else _drivers(explainer, X, today),
+        "base_rate": _return_stats(y),
+        "analogs": _analogs(X, y, today),
         "history": describe_history(closes),
-        "forecast_path": _forecast_path(closes.index[-1], current_price, log_return, final_low, final_high),
+        "forecast_path": _forecast_path(closes.index[-1], current_price, log_return, final_low, final_high, sessions),
         "as_of": datetime.now(timezone.utc).isoformat(),
     }
