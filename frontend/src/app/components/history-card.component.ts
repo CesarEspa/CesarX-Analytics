@@ -1,5 +1,6 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { AuthService } from '../core/auth.service';
 import { HistoryReading } from '../core/models';
 
 @Component({
@@ -8,7 +9,7 @@ import { HistoryReading } from '../core/models';
   imports: [DecimalPipe],
   template: `
     <div class="card">
-      <div class="label">Datos reales</div>
+      <div class="label">{{ auth.isDemo() ? 'Datos simulados' : 'Datos reales' }}</div>
       <h2>Qué dice el historial</h2>
 
       @if (loading) {
@@ -56,6 +57,8 @@ import { HistoryReading } from '../core/models';
   `],
 })
 export class HistoryCardComponent {
+  readonly auth = inject(AuthService);
+
   @Input() history: HistoryReading | null = null;
   @Input() loading = false;
 
