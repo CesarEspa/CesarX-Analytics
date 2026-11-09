@@ -107,8 +107,25 @@ export interface LightQuote {
   asOf: string;
 }
 
+export type HorizonKey = '1w' | '15d' | '1m' | '6m' | '1y';
+
+export interface ExplanationReason {
+  source: string;
+  effect: 'up' | 'down' | 'neutral';
+  text: string;
+}
+
+export interface ForecastExplanation {
+  headline: string;
+  reasons: ExplanationReason[];
+  caveat: string;
+}
+
 export interface Prediction {
   symbol: string;
+  horizon: HorizonKey;
+  horizon_label: string;
+  horizon_sessions: number;
   horizon_days: number;
   current_price: number;
   predicted_price: number;
@@ -131,15 +148,17 @@ export interface Prediction {
     method: string;
     holdout_rows: number;
     independent_periods: number;
+    enough_periods: boolean;
     beats_baseline: boolean;
     reliable: boolean;
-    interval_coverage_pct: number;
+    interval_coverage_pct: number | null;
     baseline_directional_accuracy_pct: number;
   };
   candidates: ModelCandidate[];
   top_factors: { feature: string; label: string; weight_pct: number }[];
   history: HistoryReading;
   forecast_path: ForecastPoint[];
+  explanation: ForecastExplanation;
   as_of: string;
 }
 

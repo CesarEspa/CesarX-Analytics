@@ -6,6 +6,7 @@ import {
   AlertItem,
   AlertRequest,
   EtfResponse,
+  HorizonKey,
   LightQuote,
   NewsAnalysis,
   PortfolioPositionRequest,
@@ -41,8 +42,9 @@ export class ApiService {
   }
 
   // --- AI microservice (via backend proxy) ---
-  getPrediction(symbol: string): Observable<Prediction> {
-    return this.http.get<Prediction>(`${this.baseUrl}/api/ai/predict/${symbol}`);
+  getPrediction(symbol: string, horizon: HorizonKey): Observable<Prediction> {
+    const params = new HttpParams().set('horizon', horizon);
+    return this.http.get<Prediction>(`${this.baseUrl}/api/ai/predict/${symbol}`, { params });
   }
 
   getNewsAnalysis(symbol: string): Observable<NewsAnalysis> {

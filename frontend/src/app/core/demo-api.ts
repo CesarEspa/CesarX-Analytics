@@ -10,6 +10,7 @@ import {
   PortfolioPosition,
   PortfolioPositionRequest,
   PortfolioSummary,
+  HorizonKey,
   Prediction,
   PriceHistoryPoint,
   PriceHistoryResponse,
@@ -29,7 +30,6 @@ const STORE_KEY = 'cesarx.demo.v1';
 const TOKEN_KEY = 'cesarx.token';
 const DAY_SECONDS = 86_400;
 const SESSIONS = 1_300;
-const HORIZON = 5;
 
 export function isDemoSession(): boolean {
   return localStorage.getItem(TOKEN_KEY) === DEMO_TOKEN;
@@ -234,13 +234,25 @@ function quote(etf: Seed): PriceQuote {
   };
 }
 
-function prediction(etf: Seed): Prediction {
+const DEMO_HORIZONS: Record<HorizonKey, { sessions: number; days: number; label: string }> = {
+  '1w': { sessions: 5, days: 7, label: '1 semana' },
+  '15d': { sessions: 10, days: 15, label: '15 días' },
+  '1m': { sessions: 21, days: 30, label: '1 mes' },
+  '6m': { sessions: 126, days: 182, label: '6 meses' },
+  '1y': { sessions: 252, days: 365, label: '1 año' },
+};
+
+function prediction(etf: Seed, horizon: HorizonKey): Prediction {
+  const plan = DEMO_HORIZONS[horizon];
+  const HORIZON = plan.sessions;
+  const enoughPeriods = HORIZON < 63;
   const h = hash(`prediction:${etf.symbol}`);
-  const returnPct = round((h % 500) / 100 - 1.8);
+  const returnPct = round(((h % 500) / 100 - 1.8) * (HORIZON / 5) ** 0.75);
   const bars = daily(etf);
   const current = bars[SESSIONS - 1].close;
-  const low = returnPct - 3.6;
-  const high = returnPct + 3;
+  const margin = Math.sqrt(HORIZON / 5);
+  const low = round(returnPct - 3.6 * margin);
+  const high = round(returnPct + 3 * margin);
   const r2 = round((h % 8) / 100);
 
   const change = (days: number) => round((current / bars[SESSIONS - 1 - days].close - 1) * 100);
@@ -271,11 +283,14 @@ function prediction(etf: Seed): Prediction {
 
   return {
     symbol: etf.symbol,
-    horizon_days: 7,
+    horizon,
+    horizon_label: plan.label,
+    horizon_sessions: HORIZON,
+    horizon_days: plan.days,
     current_price: current,
     predicted_price: forecast_path[HORIZON - 1].expected,
     predicted_return_pct: returnPct,
-    direction: returnPct > 1 ? 'UP' : returnPct < -1 ? 'DOWN' : 'SIDEWAYS',
+    direction: returnPct > margin ? 'UP' : returnPct < -margin ? 'DOWN' : 'SIDEWAYS',
     confidence: 'LOW',
     model: 'Simulado',
     best_candidate: 'Simulado',
@@ -292,10 +307,11 @@ function prediction(etf: Seed): Prediction {
     validation: {
       method: 'Valores simulados del modo demo',
       holdout_rows: 500,
-      independent_periods: 100,
+      independent_periods: Math.floor(500 / HORIZON),
+      enough_periods: enoughPeriods,
       beats_baseline: r2 > 0,
       reliable: false,
-      interval_coverage_pct: 80,
+      interval_coverage_pct: enoughPeriods ? 80 : null,
       baseline_directional_accuracy_pct: 60,
     },
     candidates: [
@@ -323,6 +339,16 @@ function prediction(etf: Seed): Prediction {
       rsi: 52,
     },
     forecast_path,
+    explanation: {
+      headline: `Ejemplo a ${plan.label}: de ${current.toFixed(2)} a ${forecast_path[HORIZON - 1].expected.toFixed(2)}, con cifras simuladas.`,
+      reasons: [
+        { source: 'Modelo', effect: returnPct >= 0 ? 'up' : 'down', text: `Texto de ejemplo: con una cuenta real, aquí se indica qué modelo se usó para ${plan.label} y si superó al promedio histórico.` },
+        { source: 'Historial', effect: 'up', text: 'Texto de ejemplo: con una cuenta real, aquí aparece cuántas veces subió el activo en ventanas de este mismo plazo.' },
+        { source: 'Gráfica', effect: trend === 'bullish' ? 'up' : trend === 'bearish' ? 'down' : 'neutral', text: `Datos simulados. Tendencia ${trendText} frente a las medias de 50 y 200 días.` },
+        { source: 'Noticias', effect: 'neutral', text: 'Texto de ejemplo: con una cuenta real, aquí se citan los titulares del día y su tono.' },
+      ],
+      caveat: 'Datos simulados del modo demo. Ningún método puede dar el precio exacto. No es asesoría financiera.',
+    },
     as_of: new Date().toISOString(),
   };
 }
@@ -455,7 +481,7 @@ function respond(req: HttpRequest<unknown>) {
       const range = req.params.get('range') ?? '3mo';
       return ok({ symbol: etf.symbol, range, points: history(etf, range) } satisfies PriceHistoryResponse);
     }
-    if (action === 'predict') return ok(prediction(etf));
+    if (action === 'predict') return ok(prediction(etf, (req.params.get('horizon') ?? '1w') as HorizonKey));
     if (action === 'news') return ok(news(etf));
   }
 

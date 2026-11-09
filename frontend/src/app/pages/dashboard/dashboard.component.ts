@@ -6,6 +6,7 @@ import {
   AlertItem,
   AlertRequest,
   EtfResponse,
+  HorizonKey,
   NewsAnalysis,
   PortfolioPositionRequest,
   PortfolioSummary,
@@ -20,6 +21,22 @@ import { AlertsPanelComponent } from '../../components/alerts-panel.component';
 import { PredictionCardComponent } from '../../components/prediction-card.component';
 import { NewsPanelComponent } from '../../components/news-panel.component';
 import { HistoryCardComponent } from '../../components/history-card.component';
+import { ForecastExplanationComponent } from '../../components/forecast-explanation.component';
+
+interface HorizonOption {
+  key: HorizonKey;
+  label: string;
+  /** History shown beside the projection, so past and future stay in proportion. */
+  chartRange: string;
+}
+
+const HORIZONS: HorizonOption[] = [
+  { key: '1w', label: '1 semana', chartRange: '3mo' },
+  { key: '15d', label: '15 días', chartRange: '3mo' },
+  { key: '1m', label: '1 mes', chartRange: '6mo' },
+  { key: '6m', label: '6 meses', chartRange: '1y' },
+  { key: '1y', label: '1 año', chartRange: '5y' },
+];
 
 interface RangeOption {
   value: string;
@@ -47,6 +64,7 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
   imports: [
     DatePipe,
     DecimalPipe,
+    ForecastExplanationComponent,
     HistoryCardComponent,
     QuoteCardComponent,
     CandleChartComponent,
@@ -116,6 +134,19 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
 
       <section class="market">
         <div class="card chart-card">
+          <div class="horizons" role="group" aria-label="Plazo de la proyección">
+            <span class="label">Proyectar a</span>
+            @for (horizon of horizons; track horizon.key) {
+              <button
+                class="btn-ghost"
+                [class.active]="selectedHorizon().key === horizon.key"
+                [attr.aria-pressed]="selectedHorizon().key === horizon.key"
+                (click)="selectHorizon(horizon)"
+              >
+                {{ horizon.label }}
+              </button>
+            }
+          </div>
           <div class="chart-head">
             <div class="legend">
               <span><i class="candle"></i> Precio</span>
@@ -155,8 +186,11 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
           [prediction]="prediction()"
           [loading]="predictionLoading()"
           [error]="predictionError()"
+          [horizonLabel]="selectedHorizon().label"
         />
       </section>
+
+      <app-forecast-explanation [explanation]="prediction()?.explanation ?? null" [loading]="predictionLoading()" />
 
       <section class="panels even">
         <app-history-card [history]="prediction()?.history ?? null" [loading]="predictionLoading()" />
@@ -212,6 +246,8 @@ const CHART_REFRESH_MS = 5 * 60_000; // intraday candles change every 5 minutes
     .reading p { margin: 0; font-size: 15px; }
     .market { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(320px, 1fr); gap: 18px; align-items: start; }
     .chart-card { min-width: 0; }
+    .horizons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+    .horizons .label { margin-right: 8px; }
     .chart-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
     .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; }
     .legend span { display: inline-flex; align-items: center; gap: 7px; }
@@ -246,12 +282,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
 
   readonly ranges = RANGES;
+  readonly horizons = HORIZONS;
 
   readonly etfs = signal<EtfResponse[]>([]);
   readonly quotes = signal<Record<string, PriceQuote>>({});
   readonly failedQuotes = signal<string[]>([]);
   readonly selectedSymbol = signal<string>('VGT');
   readonly selectedRange = signal<RangeOption>(RANGES[3]);
+  readonly selectedHorizon = signal<HorizonOption>(HORIZONS[0]);
   readonly historyPoints = signal<PriceHistoryPoint[]>([]);
   readonly historyLoading = signal(false);
   readonly portfolio = signal<PortfolioSummary | null>(null);
@@ -297,6 +335,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private chartTimer: ReturnType<typeof setInterval> | null = null;
+  private predictionRequest = 0;
 
   ngOnInit(): void {
     this.loadEtfs();
@@ -341,6 +380,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.loadHistory();
   }
 
+  selectHorizon(horizon: HorizonOption): void {
+    this.selectedHorizon.set(horizon);
+    const range = RANGES.find((r) => r.value === horizon.chartRange);
+    if (range && range !== this.selectedRange()) {
+      this.selectRange(range);
+    }
+    this.loadPrediction();
+  }
+
   /**
    * Real-time refresh: one cheap batch request that updates price and daily
    * change on every card without re-computing signals or history.
@@ -373,22 +421,32 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadAiAnalysis(): void {
-    const symbol = this.selectedSymbol();
-
+  /** Only the latest choice may fill the card: a slower, older response is dropped. */
+  private loadPrediction(): void {
+    const request = ++this.predictionRequest;
     this.predictionLoading.set(true);
     this.predictionError.set(null);
     this.prediction.set(null);
-    this.api.getPrediction(symbol).subscribe({
+    this.api.getPrediction(this.selectedSymbol(), this.selectedHorizon().key).subscribe({
       next: (prediction) => {
-        this.prediction.set(prediction);
-        this.predictionLoading.set(false);
+        if (request === this.predictionRequest) {
+          this.prediction.set(prediction);
+          this.predictionLoading.set(false);
+        }
       },
       error: (err) => {
-        this.predictionLoading.set(false);
-        this.predictionError.set(err?.error?.message ?? 'Predicción no disponible.');
+        if (request === this.predictionRequest) {
+          this.predictionLoading.set(false);
+          this.predictionError.set(err?.error?.message ?? 'Predicción no disponible.');
+        }
       },
     });
+  }
+
+  private loadAiAnalysis(): void {
+    const symbol = this.selectedSymbol();
+
+    this.loadPrediction();
 
     this.newsLoading.set(true);
     this.newsError.set(null);

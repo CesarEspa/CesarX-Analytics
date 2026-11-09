@@ -254,16 +254,17 @@ export class CandleChartComponent implements AfterViewInit, OnChanges, OnDestroy
     this.maShortSeries?.setData(this.intraday ? [] : this.movingAverage(20));
     this.maLongSeries?.setData(this.intraday ? [] : this.movingAverage(50));
     const futureBars = this.renderForecast();
-    this.fitView(candles.length + futureBars);
+    this.fitView(candles.length + futureBars, futureBars);
     this.showCandle(this.points[this.points.length - 1]);
   }
 
   /** On phones, older candles stay a swipe away so the projection remains readable. */
-  private fitView(totalBars: number): void {
+  private fitView(totalBars: number, futureBars: number): void {
     const timeScale = this.chart?.timeScale();
     timeScale?.fitContent();
-    if (!this.intraday && this.container.nativeElement.clientWidth < PHONE_WIDTH && totalBars > PHONE_BARS) {
-      timeScale?.setVisibleLogicalRange({ from: totalBars - PHONE_BARS, to: totalBars + 1 });
+    const visibleBars = Math.max(PHONE_BARS, Math.ceil(futureBars * 1.8));
+    if (!this.intraday && this.container.nativeElement.clientWidth < PHONE_WIDTH && totalBars > visibleBars) {
+      timeScale?.setVisibleLogicalRange({ from: totalBars - visibleBars, to: totalBars + 1 });
     }
   }
 

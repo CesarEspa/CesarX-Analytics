@@ -9,7 +9,7 @@ import { Prediction } from '../core/models';
   template: `
     <div class="card">
       <div class="label red">Proyección validada</div>
-      <h2>A 1 semana</h2>
+      <h2>A {{ horizonLabel }}</h2>
 
       @if (loading) {
         <div class="loading"><span class="spinner"></span> <span class="muted small">Entrenando y validando modelos…</span></div>
@@ -38,8 +38,12 @@ import { Prediction } from '../core/models';
         <details>
           <summary>Cómo se validó</summary>
           <p class="muted small">
-            {{ p.validation.method }}. {{ p.trained_samples }} sesiones; los últimos {{ p.validation.independent_periods }} periodos semanales no se usaron para elegir el modelo.
-            En esos periodos, el rango contuvo el {{ p.validation.interval_coverage_pct | number: '1.0-0' }}% de los resultados reales.
+            @if (p.validation.enough_periods) {
+              {{ p.validation.method }}. {{ p.trained_samples }} sesiones; los últimos {{ p.validation.independent_periods }} periodos sin solapar no se usaron para elegir el modelo.
+              En esos periodos, el rango contuvo el {{ p.validation.interval_coverage_pct | number: '1.0-0' }}% de los resultados reales.
+            } @else {
+              Con {{ p.trained_samples }} sesiones solo quedan {{ p.validation.independent_periods }} periodos sin solapar a este plazo, muy pocos para validar un modelo. La cifra y el rango resumen lo ocurrido en esos años.
+            }
           </p>
           <table>
             <thead><tr><th>Modelo</th><th>R²</th><th>Error</th><th>Acierto</th></tr></thead>
@@ -96,6 +100,7 @@ export class PredictionCardComponent {
   @Input() prediction: Prediction | null = null;
   @Input() loading = false;
   @Input() error: string | null = null;
+  @Input() horizonLabel = '1 semana';
 
   directionLabel(): string {
     switch (this.prediction?.direction) {
@@ -107,6 +112,9 @@ export class PredictionCardComponent {
 
   verdictText(): string {
     const p = this.prediction!;
+    if (!p.validation.enough_periods) {
+      return 'A este plazo no hay datos suficientes para validar un modelo: es el promedio histórico, no una predicción.';
+    }
     if (p.validation.reliable) {
       return 'El modelo superó a la media histórica con respaldo estadístico en datos que no vio.';
     }
